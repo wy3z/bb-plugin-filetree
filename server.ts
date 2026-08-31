@@ -22,7 +22,8 @@ interface ActiveSearch {
 
 interface ActiveWatch {
   threadId: string;
-  hostId: string;
+  hostId: string | null;
+  controller: AbortController;
 }
 
 const EARLY_CANCEL_TTL_MS = 30_000;
@@ -109,7 +110,13 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     "workspaceChanged",
     ({ hostId, payload }) => {
       const active = activeWatches.get(payload.watchId);
-      if (active === undefined || active.hostId !== hostId) return;
+      if (
+        active === undefined ||
+        active.controller.signal.aborted ||
+        active.hostId !== hostId
+      ) {
+        return;
+      }
       bb.realtime.publish(watchChannel(payload.watchId), payload.event);
     },
   );
@@ -117,6 +124,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   const unsubscribeWorkerExit = host.experimental_onWorkerExit(({ hostId }) => {
     for (const [watchId, active] of activeWatches) {
       if (active.hostId !== hostId) continue;
+      active.controller.abort(new Error("Host worker exited"));
       activeWatches.delete(watchId);
       bb.realtime.publish(watchChannel(watchId), {
         kind: "watch-error",
@@ -187,34 +195,45 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     },
 
     async startWatch({ threadId, watchId }) {
-      const workspace = await requireWorkspace(threadId);
       const existing = activeWatches.get(watchId);
       if (existing !== undefined) {
         activeWatches.delete(watchId);
-        try {
-          await host.call(
-            "stopWatch",
-            { watchId },
-            { hostId: existing.hostId },
-          );
-        } catch {}
+        existing.controller.abort(new Error("Watcher replaced"));
+        if (existing.hostId !== null) {
+          try {
+            await host.call(
+              "stopWatch",
+              { watchId },
+              { hostId: existing.hostId },
+            );
+          } catch {}
+        }
       }
 
-      activeWatches.set(watchId, {
-        threadId,
-        hostId: workspace.hostId,
-      });
+      const controller = new AbortController();
+      const active: ActiveWatch = { threadId, hostId: null, controller };
+      activeWatches.set(watchId, active);
+
       try {
+        const workspace = await requireWorkspace(threadId);
+        if (
+          activeWatches.get(watchId) !== active ||
+          controller.signal.aborted
+        ) {
+          return { started: false };
+        }
+        active.hostId = workspace.hostId;
         await host.call(
           "startWatch",
           { rootPath: workspace.rootPath, watchId },
-          { hostId: workspace.hostId },
+          { hostId: workspace.hostId, signal: controller.signal },
         );
-        return { started: true };
+        return { started: !controller.signal.aborted };
       } catch (error) {
-        if (activeWatches.get(watchId)?.threadId === threadId) {
+        if (activeWatches.get(watchId) === active) {
           activeWatches.delete(watchId);
         }
+        if (controller.signal.aborted) return { started: false };
         throw error;
       }
     },
@@ -225,15 +244,16 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         return { stopped: false };
       }
       activeWatches.delete(watchId);
+      active.controller.abort(new Error("Watcher stopped"));
+      if (active.hostId === null) return { stopped: true };
       try {
-        return await host.call(
+        await host.call(
           "stopWatch",
           { watchId },
           { hostId: active.hostId },
         );
-      } catch {
-        return { stopped: false };
-      }
+      } catch {}
+      return { stopped: true };
     },
 
     async readFile({ threadId, path: relativePath }) {
@@ -260,9 +280,14 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
 
     const watches = [...activeWatches.entries()];
     activeWatches.clear();
+    for (const [, active] of watches) {
+      active.controller.abort(new Error("Plugin disposed"));
+    }
     await Promise.allSettled(
-      watches.map(([watchId, active]) =>
-        host.call("stopWatch", { watchId }, { hostId: active.hostId }),
+      watches.flatMap(([watchId, active]) =>
+        active.hostId === null
+          ? []
+          : [host.call("stopWatch", { watchId }, { hostId: active.hostId })],
       ),
     );
   });
