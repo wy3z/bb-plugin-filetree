@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
@@ -28,10 +29,17 @@ const MIN_TREE_WIDTH = 180;
 const MAX_TREE_WIDTH = 520;
 const MIN_VIEWER_WIDTH = 220;
 const SEARCH_LIMIT = 120;
+const WATCH_RETRY_MS = 1_500;
+
+let nextSearchSequence = 1;
 
 type DirectoryState =
   | { status: "loading" }
-  | { status: "ready"; entries: readonly FileTreeEntry[] }
+  | {
+      status: "ready";
+      entries: readonly FileTreeEntry[];
+      truncated: boolean;
+    }
   | { status: "error"; message: string };
 
 type PreviewState =
@@ -111,10 +119,19 @@ function clampWidth(width: number, containerWidth: number): number {
   return Math.max(MIN_TREE_WIDTH, Math.min(width, responsiveMax));
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 function FileTreePanel({ threadId }: PluginThreadPanelProps) {
   const rpc = useRpc<typeof filetreeRpcContract>();
   const navigate = useBbNavigate();
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const directoryRequestVersions = useRef(new Map<string, number>());
+  const expandedRef = useRef<ReadonlySet<string>>(new Set());
+  const selectedPathRef = useRef<string | null>(null);
+  const queryRef = useRef("");
+
   const [workspace, setWorkspace] = useState<WorkspaceContext | null>(null);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [directories, setDirectories] = useState<
@@ -131,6 +148,7 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
   const [lineOverflowMode, setLineOverflowMode] =
     useState<LineOverflowMode>("scroll");
   const [query, setQuery] = useState("");
+  const [searchRefreshNonce, setSearchRefreshNonce] = useState(0);
   const [searchState, setSearchState] = useState<{
     status: "idle" | "loading" | "ready" | "error";
     matches: readonly FileTreeEntry[];
@@ -142,6 +160,10 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
   );
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  expandedRef.current = expanded;
+  selectedPathRef.current = selectedPath;
+  queryRef.current = query;
 
   const loadWorkspace = useCallback(async () => {
     setWorkspaceError(null);
@@ -160,6 +182,9 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
 
   const loadDirectory = useCallback(
     async (relativePath: string) => {
+      const requestVersion =
+        (directoryRequestVersions.current.get(relativePath) ?? 0) + 1;
+      directoryRequestVersions.current.set(relativePath, requestVersion);
       setDirectories((current) => ({
         ...current,
         [relativePath]: { status: "loading" },
@@ -169,11 +194,25 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
           threadId,
           path: relativePath,
         });
+        if (
+          directoryRequestVersions.current.get(relativePath) !== requestVersion
+        ) {
+          return;
+        }
         setDirectories((current) => ({
           ...current,
-          [relativePath]: { status: "ready", entries: result.entries },
+          [relativePath]: {
+            status: "ready",
+            entries: result.entries,
+            truncated: result.truncated,
+          },
         }));
       } catch (error) {
+        if (
+          directoryRequestVersions.current.get(relativePath) !== requestVersion
+        ) {
+          return;
+        }
         setDirectories((current) => ({
           ...current,
           [relativePath]: { status: "error", message: errorMessage(error) },
@@ -187,6 +226,7 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
     workspace?.kind === "ready" ? workspace.environmentId : null;
   useEffect(() => {
     if (workspaceEnvironmentId === null) return;
+    directoryRequestVersions.current.clear();
     setDirectories({});
     setExpanded(new Set());
     void loadDirectory("");
@@ -239,11 +279,19 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
       setSearchState({ status: "idle", matches: [], truncated: false });
       return;
     }
+
     let cancelled = false;
+    let searchId: string | null = null;
     setSearchState((current) => ({ ...current, status: "loading" }));
     const timer = window.setTimeout(() => {
+      searchId = `${threadId}:${Date.now().toString(36)}:${nextSearchSequence++}`;
       void rpc
-        .call("search", { threadId, query: trimmed, limit: SEARCH_LIMIT })
+        .call("search", {
+          threadId,
+          searchId,
+          query: trimmed,
+          limit: SEARCH_LIMIT,
+        })
         .then((result) => {
           if (!cancelled) {
             setSearchState({
@@ -264,11 +312,52 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
           }
         });
     }, 180);
+
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
+      if (searchId !== null) {
+        void rpc.call("cancelSearch", { threadId, searchId }).catch(() => {});
+      }
     };
-  }, [query, rpc, threadId]);
+  }, [query, rpc, searchRefreshNonce, threadId]);
+
+  useEffect(() => {
+    if (workspaceEnvironmentId === null) return;
+    let stopped = false;
+
+    const refreshVisibleWorkspace = () => {
+      const paths = new Set<string>(["", ...expandedRef.current]);
+      for (const relativePath of paths) void loadDirectory(relativePath);
+      if (selectedPathRef.current !== null) {
+        setPreviewNonce((current) => current + 1);
+      }
+      if (queryRef.current.trim().length > 0) {
+        setSearchRefreshNonce((current) => current + 1);
+      }
+    };
+
+    const run = async () => {
+      while (!stopped) {
+        try {
+          const event = await rpc.call("watchWorkspace", { threadId });
+          if (stopped) break;
+          if (event.kind === "changed" || event.kind === "rescan-required") {
+            refreshVisibleWorkspace();
+          } else if (event.kind === "watch-error") {
+            await sleep(WATCH_RETRY_MS);
+          }
+        } catch {
+          if (!stopped) await sleep(WATCH_RETRY_MS);
+        }
+      }
+    };
+
+    void run();
+    return () => {
+      stopped = true;
+    };
+  }, [loadDirectory, rpc, threadId, workspaceEnvironmentId]);
 
   const toggleDirectory = useCallback(
     (entry: FileTreeEntry) => {
@@ -292,7 +381,7 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
   }, []);
 
   const openDirectoryContextMenu = useCallback(
-    (event: React.MouseEvent, entry: FileTreeEntry) => {
+    (event: ReactMouseEvent, entry: FileTreeEntry) => {
       event.preventDefault();
       setContextMenu({ x: event.clientX, y: event.clientY, entry });
     },
@@ -373,7 +462,8 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
   }, []);
 
   const readyWorkspace = workspace?.kind === "ready" ? workspace : null;
-  const activePreview = previewState.status === "ready" ? previewState.preview : null;
+  const activePreview =
+    previewState.status === "ready" ? previewState.preview : null;
   const viewerTitle = selectedPath === null ? "Files" : basename(selectedPath);
   const selectedFileIntent =
     readyWorkspace !== null && selectedPath !== null
@@ -387,10 +477,10 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
         }
       : null;
 
-  const openSelectedExternally = () => {
+  const openSelectedInEditor = () => {
     if (selectedFileIntent === null) return;
     if (!navigate.experimental_openFileExternally(selectedFileIntent)) {
-      setNotice("No external file target is available");
+      setNotice("No external editor is available");
       window.setTimeout(() => setNotice(null), 1600);
     }
   };
@@ -441,7 +531,7 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
                     type="button"
                     title="Open in editor"
                     aria-label="Open in editor"
-                    onClick={openSelectedExternally}
+                    onClick={openSelectedInEditor}
                   >
                     <ExternalLinkIcon />
                   </button>
@@ -474,6 +564,7 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
             ) : null}
           </div>
         </div>
+
         <div className="bb-ft-viewer-body">
           {selectedPath === null ? (
             <EmptyState>Select a file from the tree.</EmptyState>
@@ -481,14 +572,16 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
             <EmptyState>Loading {basename(selectedPath)}…</EmptyState>
           ) : previewState.status === "error" ? (
             <EmptyState tone="error">{previewState.message}</EmptyState>
-          ) : previewState.status === "ready" && previewState.preview.kind === "text" ? (
+          ) : previewState.status === "ready" &&
+            previewState.preview.kind === "text" ? (
             <SourceCode
               content={previewState.preview.content}
               path={selectedPath}
               overflow={lineOverflowMode}
               className="bb-ft-source-code"
             />
-          ) : previewState.status === "ready" && previewState.preview.kind === "unsupported" ? (
+          ) : previewState.status === "ready" &&
+            previewState.preview.kind === "unsupported" ? (
             <EmptyState>{previewState.preview.reason}</EmptyState>
           ) : (
             <EmptyState>Select a file from the tree.</EmptyState>
@@ -554,7 +647,8 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
               selectedPath={selectedPath}
               onSelect={selectFile}
             />
-          ) : rootDirectory?.status === "loading" || rootDirectory === undefined ? (
+          ) : rootDirectory?.status === "loading" ||
+            rootDirectory === undefined ? (
             <TreeMessage>Loading files…</TreeMessage>
           ) : rootDirectory.status === "error" ? (
             <TreeMessage tone="error">
@@ -564,18 +658,21 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
               </button>
             </TreeMessage>
           ) : (
-            <DirectoryRows
-              entries={rootDirectory.entries}
-              level={0}
-              workspace={workspace}
-              directories={directories}
-              expanded={expanded}
-              selectedPath={selectedPath}
-              onSelect={selectFile}
-              onToggle={toggleDirectory}
-              onRetry={loadDirectory}
-              onDirectoryContextMenu={openDirectoryContextMenu}
-            />
+            <>
+              <DirectoryRows
+                entries={rootDirectory.entries}
+                level={0}
+                workspace={workspace}
+                directories={directories}
+                expanded={expanded}
+                selectedPath={selectedPath}
+                onSelect={selectFile}
+                onToggle={toggleDirectory}
+                onRetry={loadDirectory}
+                onDirectoryContextMenu={openDirectoryContextMenu}
+              />
+              {rootDirectory.truncated ? <DirectoryLimitMessage level={0} /> : null}
+            </>
           )}
         </div>
 
@@ -596,6 +693,42 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
         />
       ) : null}
     </div>
+  );
+}
+
+function FileRow({
+  entry,
+  level,
+  workspace,
+  selectedPath,
+  onSelect,
+}: {
+  entry: FileTreeEntry;
+  level: number;
+  workspace: ReadyWorkspace;
+  selectedPath: string | null;
+  onSelect: (entry: FileTreeEntry) => void;
+}) {
+  return (
+    <FileLink
+      className={`bb-ft-row ${selectedPath === entry.path ? "is-selected" : ""}`}
+      style={{ paddingLeft: 8 + level * 14 }}
+      title={entry.path}
+      aria-current={selectedPath === entry.path ? "true" : undefined}
+      target={{
+        kind: "workspace",
+        environmentId: workspace.environmentId,
+        path: entry.path,
+      }}
+      onClick={(event) => {
+        event.preventDefault();
+        onSelect(entry);
+      }}
+    >
+      <span className="bb-ft-chevron-slot" />
+      <FileIcon path={entry.path} />
+      <span className="bb-ft-row-name">{entry.name}</span>
+    </FileLink>
   );
 }
 
@@ -620,72 +753,62 @@ function DirectoryRows({
   onSelect: (entry: FileTreeEntry) => void;
   onToggle: (entry: FileTreeEntry) => void;
   onRetry: (path: string) => Promise<void>;
-  onDirectoryContextMenu: (
-    event: React.MouseEvent,
-    entry: FileTreeEntry,
-  ) => void;
+  onDirectoryContextMenu: (event: ReactMouseEvent, entry: FileTreeEntry) => void;
 }) {
   return (
     <>
       {entries.map((entry) => {
-        const isDirectory = entry.kind === "directory";
-        const isOpen = isDirectory && expanded.has(entry.path);
-        const childState = isDirectory ? directories[entry.path] : undefined;
+        if (entry.kind === "file") {
+          return (
+            <FileRow
+              key={entry.path}
+              entry={entry}
+              level={level}
+              workspace={workspace}
+              selectedPath={selectedPath}
+              onSelect={onSelect}
+            />
+          );
+        }
+
+        const isOpen = expanded.has(entry.path);
+        const childState = directories[entry.path];
         return (
           <div key={entry.path}>
-            {isDirectory ? (
-              <button
-                type="button"
-                className="bb-ft-row"
-                style={{ paddingLeft: 8 + level * 14 }}
-                title={entry.path}
-                aria-expanded={isOpen}
-                onClick={() => onToggle(entry)}
-                onContextMenu={(event) =>
-                  onDirectoryContextMenu(event, entry)
-                }
-              >
-                <span className="bb-ft-chevron-slot">
-                  <ChevronIcon open={isOpen} />
-                </span>
-                <FolderIcon open={isOpen} />
-                <span className="bb-ft-row-name">{entry.name}</span>
-              </button>
-            ) : (
-              <FileLink
-                target={{
-                  kind: "workspace",
-                  environmentId: workspace.environmentId,
-                  path: entry.path,
-                }}
-                className={`bb-ft-row ${selectedPath === entry.path ? "is-selected" : ""}`}
-                style={{ paddingLeft: 8 + level * 14 }}
-                title={entry.path}
-                aria-current={selectedPath === entry.path ? "true" : undefined}
-                onClick={(event) => {
-                  event.preventDefault();
-                  onSelect(entry);
-                }}
-              >
-                <span className="bb-ft-chevron-slot" />
-                <FileIcon path={entry.path} />
-                <span className="bb-ft-row-name">{entry.name}</span>
-              </FileLink>
-            )}
-            {isDirectory && isOpen ? (
+            <button
+              type="button"
+              className="bb-ft-row"
+              style={{ paddingLeft: 8 + level * 14 }}
+              title={entry.path}
+              aria-expanded={isOpen}
+              onClick={() => onToggle(entry)}
+              onContextMenu={(event) => onDirectoryContextMenu(event, entry)}
+            >
+              <span className="bb-ft-chevron-slot">
+                <ChevronIcon open={isOpen} />
+              </span>
+              <FolderIcon open={isOpen} />
+              <span className="bb-ft-row-name">{entry.name}</span>
+            </button>
+            {isOpen ? (
               childState?.status === "ready" ? (
-                <DirectoryRows
-                  entries={childState.entries}
-                  level={level + 1}
-                  workspace={workspace}
-                  directories={directories}
-                  expanded={expanded}
-                  selectedPath={selectedPath}
-                  onSelect={onSelect}
-                  onToggle={onToggle}
-                  onRetry={onRetry}
-                  onDirectoryContextMenu={onDirectoryContextMenu}
-                />
+                <>
+                  <DirectoryRows
+                    entries={childState.entries}
+                    level={level + 1}
+                    workspace={workspace}
+                    directories={directories}
+                    expanded={expanded}
+                    selectedPath={selectedPath}
+                    onSelect={onSelect}
+                    onToggle={onToggle}
+                    onRetry={onRetry}
+                    onDirectoryContextMenu={onDirectoryContextMenu}
+                  />
+                  {childState.truncated ? (
+                    <DirectoryLimitMessage level={level + 1} />
+                  ) : null}
+                </>
               ) : childState?.status === "error" ? (
                 <div
                   className="bb-ft-child-message is-error"
@@ -712,6 +835,18 @@ function DirectoryRows({
   );
 }
 
+function DirectoryLimitMessage({ level }: { level: number }) {
+  return (
+    <div
+      className="bb-ft-child-message"
+      style={{ paddingLeft: 31 + level * 14 }}
+    >
+      Directory is large; showing the first 1,000 entries. Use search for the
+      rest.
+    </div>
+  );
+}
+
 function SearchResults({
   state,
   workspace,
@@ -732,7 +867,9 @@ function SearchResults({
     return <TreeMessage>Searching…</TreeMessage>;
   }
   if (state.status === "error") {
-    return <TreeMessage tone="error">{state.message ?? "Search failed"}</TreeMessage>;
+    return (
+      <TreeMessage tone="error">{state.message ?? "Search failed"}</TreeMessage>
+    );
   }
   if (state.matches.length === 0) {
     return <TreeMessage>No matching files.</TreeMessage>;
@@ -741,15 +878,14 @@ function SearchResults({
     <div className="bb-ft-search-results">
       {state.matches.map((entry) => (
         <FileLink
+          key={entry.path}
+          className={`bb-ft-search-result ${selectedPath === entry.path ? "is-selected" : ""}`}
+          title={entry.path}
           target={{
             kind: "workspace",
             environmentId: workspace.environmentId,
             path: entry.path,
           }}
-          key={entry.path}
-          className={`bb-ft-search-result ${selectedPath === entry.path ? "is-selected" : ""}`}
-          title={entry.path}
-          aria-current={selectedPath === entry.path ? "true" : undefined}
           onClick={(event) => {
             event.preventDefault();
             onSelect(entry);
@@ -847,7 +983,9 @@ function TreeMessage({
   tone?: "error";
 }) {
   return (
-    <div className={`bb-ft-tree-message ${tone === "error" ? "is-error" : ""}`}>
+    <div
+      className={`bb-ft-tree-message ${tone === "error" ? "is-error" : ""}`}
+    >
       {children}
     </div>
   );
@@ -988,19 +1126,12 @@ function ExternalLinkIcon() {
   return (
     <svg viewBox="0 0 16 16" aria-hidden>
       <path
-        d="M9.5 2.5h4v4M13.25 2.75 7.5 8.5"
+        d="M9 2.5h4.5V7M13.25 2.75 7.5 8.5M12.5 9v3.5a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1H7"
         fill="none"
         stroke="currentColor"
         strokeWidth="1.25"
         strokeLinecap="round"
         strokeLinejoin="round"
-      />
-      <path
-        d="M7 3.5H3.75A1.25 1.25 0 0 0 2.5 4.75v7.5a1.25 1.25 0 0 0 1.25 1.25h7.5a1.25 1.25 0 0 0 1.25-1.25V9"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.25"
-        strokeLinecap="round"
       />
     </svg>
   );
@@ -1010,17 +1141,10 @@ function WrapIcon() {
   return (
     <svg viewBox="0 0 16 16" aria-hidden>
       <path
-        d="M2.5 4h8.25a2.75 2.75 0 0 1 0 5.5H6.5"
+        d="M2 4h10M2 7h8.5a2.5 2.5 0 0 1 0 5H8.5M2 10h4M8.5 10v4l-2-2 2-2Z"
         fill="none"
         stroke="currentColor"
-        strokeWidth="1.25"
-        strokeLinecap="round"
-      />
-      <path
-        d="m8 7.75-1.75 1.75L8 11.25M2.5 7h5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.25"
+        strokeWidth="1.2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
