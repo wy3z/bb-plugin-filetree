@@ -38,7 +38,7 @@ For local development:
 
 ```sh
 bb plugin install path:$PWD
-bb plugin reload bb-plugin-filetree
+bb plugin reload filetree
 ```
 
 ## Current scope
