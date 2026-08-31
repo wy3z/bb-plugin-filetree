@@ -1,0 +1,45 @@
+{
+  "name": "bb-plugin-filetree",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A read-only file tree and source viewer for BB thread workspaces.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wy3z/bb-plugin-filetree.git"
+  },
+  "homepage": "https://github.com/wy3z/bb-plugin-filetree#readme",
+  "engines": {
+    "bb": ">=0.40.0",
+    "bbPluginSdk": ">=0.4.22"
+  },
+  "bb": {
+    "name": "File Tree",
+    "description": "Browse and preview files from the current thread workspace.",
+    "branding": {
+      "icon": "FolderOpen"
+    },
+    "app": "./app.tsx",
+    "server": "./server.ts",
+    "host": "./host.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "0.4.22",
+    "@types/node": "22.18.0",
+    "@types/react": "19.1.12",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "typescript": "6.0.2"
+  },
+  "keywords": [
+    "bb-plugin",
+    "file-tree",
+    "file-explorer"
+  ]
+}
