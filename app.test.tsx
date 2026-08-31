@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/dom";
+import { act, cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   loadPluginApp,
@@ -105,7 +106,7 @@ describe("Files panel thread scoping", () => {
       expect(workspaceCalls).toEqual(["thread-a"]);
     });
 
-    slot.rerender(<Panel threadId="thread-b" params={null} />);
+    slot.lifecycle.rerender(<Panel threadId="thread-b" params={null} />);
 
     await waitFor(() => {
       expect(workspaceCalls).toEqual(["thread-a", "thread-b"]);
@@ -122,8 +123,8 @@ describe("Files panel thread scoping", () => {
     });
 
     await waitFor(() => {
-      expect(slot.getByText("repo-b")).toBeTruthy();
-      expect(slot.getByTestId("bb-source-code").textContent).toBe(
+      expect(screen.getByText("repo-b")).toBeTruthy();
+      expect(screen.getByTestId("bb-source-code").textContent).toBe(
         "thread-b:current.ts",
       );
     });
@@ -138,12 +139,12 @@ describe("Files panel thread scoping", () => {
       await Promise.resolve();
     });
 
-    expect(slot.queryByText("repo-a")).toBeNull();
-    expect(slot.getByText("repo-b")).toBeTruthy();
+    expect(screen.queryByText("repo-a")).toBeNull();
+    expect(screen.getByText("repo-b")).toBeTruthy();
     expect(directoryCalls).toEqual([{ threadId: "thread-b", path: "" }]);
 
-    fireEvent.click(slot.getByRole("button", { name: "Open in editor" }));
-    expect(slot.navigateCalls.at(-1)).toEqual({
+    fireEvent.click(screen.getByRole("button", { name: "Open in editor" }));
+    expect(slot.inspection.navigateCalls.at(-1)).toEqual({
       method: "experimental_openFileExternally",
       options: {
         target: {
@@ -155,6 +156,6 @@ describe("Files panel thread scoping", () => {
       },
     });
 
-    slot.unmount();
+    slot.lifecycle.unmount();
   });
 });
