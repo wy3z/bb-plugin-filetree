@@ -7,13 +7,16 @@ The plugin adds a **Files** action to a thread's right panel. The tab keeps the 
 ## Features
 
 - Read-only BB-native source preview with syntax highlighting and line numbers.
+- Wrap-lines toggle using BB's source renderer.
+- Viewer header actions for refresh, copy contents, and opening the selected file in the preferred external editor.
+- Native BB file context menus on file rows, including **Open preview**, **Open with** registered file openers, **Open externally**, **Open in** available client apps, and copy actions.
 - Lazy directory expansion instead of eagerly walking the whole repository.
 - Dotfiles and `node_modules` are visible; `.git` is intentionally hidden.
 - Symlinks are intentionally omitted so the explorer never follows a tree outside the workspace root.
 - Bounded global filename/path filtering, with generated dependency/build directories searched after normal source directories.
 - Resizable tree with client-local width persistence.
 - Remembers the last selected file for each thread.
-- Right-click copy actions for relative path, absolute path, and filename.
+- Right-click copy actions for directories.
 - Works against remote thread environments through a BB host plugin worker.
 
 ## Install
