@@ -11,6 +11,7 @@ import {
   experimental_FileLink as FileLink,
   experimental_SourceCode as SourceCode,
   useBbNavigate,
+  useRealtime,
   useRpc,
   type PluginThreadPanelProps,
 } from "@get-bb/plugin-sdk/app";
@@ -19,6 +20,7 @@ import {
   type FilePreview,
   type FileTreeEntry,
   type WorkspaceContext,
+  type WorkspaceWatchEvent,
 } from "./contract.js";
 import "./app.css";
 
@@ -29,9 +31,11 @@ const MIN_TREE_WIDTH = 180;
 const MAX_TREE_WIDTH = 520;
 const MIN_VIEWER_WIDTH = 220;
 const SEARCH_LIMIT = 120;
+const SEARCH_REFRESH_DEBOUNCE_MS = 500;
 const WATCH_RETRY_MS = 1_500;
 
 let nextSearchSequence = 1;
+let nextWatchSequence = 1;
 
 type DirectoryState =
   | { status: "loading" }
@@ -55,6 +59,10 @@ interface ContextMenuState {
   x: number;
   y: number;
   entry: FileTreeEntry;
+}
+
+interface DirectoryLoadOptions {
+  preserve?: boolean;
 }
 
 function errorMessage(error: unknown): string {
@@ -119,8 +127,8 @@ function clampWidth(width: number, containerWidth: number): number {
   return Math.max(MIN_TREE_WIDTH, Math.min(width, responsiveMax));
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
+function watchChannel(watchId: string): string {
+  return `workspace-watch:${watchId}`;
 }
 
 function FileTreePanel(props: PluginThreadPanelProps) {
@@ -132,9 +140,15 @@ function FileTreePanelForThread({ threadId }: PluginThreadPanelProps) {
   const navigate = useBbNavigate();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const directoryRequestVersions = useRef(new Map<string, number>());
+  const staleDirectoriesRef = useRef(new Set<string>());
   const expandedRef = useRef<ReadonlySet<string>>(new Set());
   const selectedPathRef = useRef<string | null>(null);
   const queryRef = useRef("");
+  const searchRefreshTimerRef = useRef<number | null>(null);
+  const watchIdRef = useRef(
+    `${threadId}:${Date.now().toString(36)}:${nextWatchSequence++}`,
+  );
+  const watchId = watchIdRef.current;
 
   const [workspace, setWorkspace] = useState<WorkspaceContext | null>(null);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
@@ -153,6 +167,7 @@ function FileTreePanelForThread({ threadId }: PluginThreadPanelProps) {
     useState<LineOverflowMode>("scroll");
   const [query, setQuery] = useState("");
   const [searchRefreshNonce, setSearchRefreshNonce] = useState(0);
+  const [watchRestartNonce, setWatchRestartNonce] = useState(0);
   const [searchState, setSearchState] = useState<{
     status: "idle" | "loading" | "ready" | "error";
     matches: readonly FileTreeEntry[];
@@ -185,14 +200,20 @@ function FileTreePanelForThread({ threadId }: PluginThreadPanelProps) {
   }, [loadWorkspace, threadId]);
 
   const loadDirectory = useCallback(
-    async (relativePath: string) => {
+    async (relativePath: string, options: DirectoryLoadOptions = {}) => {
+      const preserve = options.preserve === true;
       const requestVersion =
         (directoryRequestVersions.current.get(relativePath) ?? 0) + 1;
       directoryRequestVersions.current.set(relativePath, requestVersion);
-      setDirectories((current) => ({
-        ...current,
-        [relativePath]: { status: "loading" },
-      }));
+      setDirectories((current) => {
+        if (preserve && current[relativePath]?.status === "ready") {
+          return current;
+        }
+        return {
+          ...current,
+          [relativePath]: { status: "loading" },
+        };
+      });
       try {
         const result = await rpc.call("listDirectory", {
           threadId,
@@ -203,6 +224,7 @@ function FileTreePanelForThread({ threadId }: PluginThreadPanelProps) {
         ) {
           return;
         }
+        staleDirectoriesRef.current.delete(relativePath);
         setDirectories((current) => ({
           ...current,
           [relativePath]: {
@@ -217,10 +239,15 @@ function FileTreePanelForThread({ threadId }: PluginThreadPanelProps) {
         ) {
           return;
         }
-        setDirectories((current) => ({
-          ...current,
-          [relativePath]: { status: "error", message: errorMessage(error) },
-        }));
+        setDirectories((current) => {
+          if (preserve && current[relativePath]?.status === "ready") {
+            return current;
+          }
+          return {
+            ...current,
+            [relativePath]: { status: "error", message: errorMessage(error) },
+          };
+        });
       }
     },
     [rpc, threadId],
@@ -231,6 +258,7 @@ function FileTreePanelForThread({ threadId }: PluginThreadPanelProps) {
   useEffect(() => {
     if (workspaceEnvironmentId === null) return;
     directoryRequestVersions.current.clear();
+    staleDirectoriesRef.current.clear();
     setDirectories({});
     setExpanded(new Set());
     void loadDirectory("");
@@ -286,12 +314,17 @@ function FileTreePanelForThread({ threadId }: PluginThreadPanelProps) {
 
     let cancelled = false;
     let searchId: string | null = null;
-    setSearchState((current) => ({ ...current, status: "loading" }));
+    setSearchState((current) =>
+      searchRefreshNonce > 0 && current.status === "ready"
+        ? current
+        : { ...current, status: "loading" },
+    );
     const timer = window.setTimeout(() => {
       searchId = `${threadId}:${Date.now().toString(36)}:${nextSearchSequence++}`;
       void rpc
         .call("search", {
           threadId,
+          scopeId: watchId,
           searchId,
           query: trimmed,
           limit: SEARCH_LIMIT,
@@ -324,44 +357,109 @@ function FileTreePanelForThread({ threadId }: PluginThreadPanelProps) {
         void rpc.call("cancelSearch", { threadId, searchId }).catch(() => {});
       }
     };
-  }, [query, rpc, searchRefreshNonce, threadId]);
+  }, [query, rpc, searchRefreshNonce, threadId, watchId]);
+
+  const scheduleSearchRefresh = useCallback(() => {
+    if (queryRef.current.trim().length === 0) return;
+    if (searchRefreshTimerRef.current !== null) {
+      window.clearTimeout(searchRefreshTimerRef.current);
+    }
+    searchRefreshTimerRef.current = window.setTimeout(() => {
+      searchRefreshTimerRef.current = null;
+      setSearchRefreshNonce((current) => current + 1);
+    }, SEARCH_REFRESH_DEBOUNCE_MS);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (searchRefreshTimerRef.current !== null) {
+        window.clearTimeout(searchRefreshTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const handleWorkspaceEvent = useCallback(
+    (event: WorkspaceWatchEvent) => {
+      if (event.kind === "watch-error") {
+        setWatchRestartNonce((current) => current + 1);
+        return;
+      }
+
+      if (event.kind === "rescan-required") {
+        const cachedPaths = Object.keys(directories);
+        for (const relativePath of cachedPaths) {
+          staleDirectoriesRef.current.add(relativePath);
+        }
+        const visiblePaths = new Set<string>(["", ...expandedRef.current]);
+        for (const relativePath of visiblePaths) {
+          void loadDirectory(relativePath, { preserve: true });
+        }
+        if (selectedPathRef.current !== null) {
+          setPreviewNonce((current) => current + 1);
+        }
+        scheduleSearchRefresh();
+        return;
+      }
+
+      const parentDirectories = new Set<string>();
+      let selectedFileChanged = false;
+      let filenamesChanged = false;
+
+      for (const change of event.changes) {
+        if (change.path === selectedPathRef.current) {
+          selectedFileChanged = true;
+        }
+        if (change.type === "create" || change.type === "delete") {
+          parentDirectories.add(dirname(change.path));
+          filenamesChanged = true;
+        }
+      }
+
+      for (const relativePath of parentDirectories) {
+        staleDirectoriesRef.current.add(relativePath);
+        if (relativePath === "" || expandedRef.current.has(relativePath)) {
+          void loadDirectory(relativePath, { preserve: true });
+        }
+      }
+
+      if (selectedFileChanged) {
+        setPreviewNonce((current) => current + 1);
+      }
+      if (filenamesChanged) scheduleSearchRefresh();
+    },
+    [directories, loadDirectory, scheduleSearchRefresh],
+  );
+
+  useRealtime(watchChannel(watchId), (payload) => {
+    handleWorkspaceEvent(payload as WorkspaceWatchEvent);
+  });
 
   useEffect(() => {
     if (workspaceEnvironmentId === null) return;
     let stopped = false;
+    let retryTimer: number | null = null;
 
-    const refreshVisibleWorkspace = () => {
-      const paths = new Set<string>(["", ...expandedRef.current]);
-      for (const relativePath of paths) void loadDirectory(relativePath);
-      if (selectedPathRef.current !== null) {
-        setPreviewNonce((current) => current + 1);
-      }
-      if (queryRef.current.trim().length > 0) {
-        setSearchRefreshNonce((current) => current + 1);
-      }
-    };
-
-    const run = async () => {
-      while (!stopped) {
-        try {
-          const event = await rpc.call("watchWorkspace", { threadId });
-          if (stopped) break;
-          if (event.kind === "changed" || event.kind === "rescan-required") {
-            refreshVisibleWorkspace();
-          } else if (event.kind === "watch-error") {
-            await sleep(WATCH_RETRY_MS);
-          }
-        } catch {
-          if (!stopped) await sleep(WATCH_RETRY_MS);
+    const start = async () => {
+      try {
+        await rpc.call("startWatch", { threadId, watchId });
+      } catch {
+        if (!stopped) {
+          retryTimer = window.setTimeout(
+            () => setWatchRestartNonce((current) => current + 1),
+            WATCH_RETRY_MS,
+          );
         }
       }
     };
 
-    void run();
+    void start();
     return () => {
       stopped = true;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      void rpc.call("stopWatch", { threadId, watchId }).catch(() => {});
     };
-  }, [loadDirectory, rpc, threadId, workspaceEnvironmentId]);
+  }, [rpc, threadId, watchId, watchRestartNonce, workspaceEnvironmentId]);
 
   const toggleDirectory = useCallback(
     (entry: FileTreeEntry) => {
@@ -373,8 +471,14 @@ function FileTreePanelForThread({ threadId }: PluginThreadPanelProps) {
         else next.add(entry.path);
         return next;
       });
-      if (opening && directories[entry.path]?.status !== "ready") {
-        void loadDirectory(entry.path);
+      if (
+        opening &&
+        (directories[entry.path]?.status !== "ready" ||
+          staleDirectoriesRef.current.has(entry.path))
+      ) {
+        void loadDirectory(entry.path, {
+          preserve: directories[entry.path]?.status === "ready",
+        });
       }
     },
     [directories, expanded, loadDirectory],
