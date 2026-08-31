@@ -11,7 +11,7 @@
   "homepage": "https://github.com/wy3z/bb-plugin-filetree#readme",
   "engines": {
     "bb": ">=0.40.0",
-    "bbPluginSdk": ">=0.4.22"
+    "bbPluginSdk": ">=0.4.21"
   },
   "bb": {
     "name": "File Tree",
@@ -30,7 +30,7 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
-    "@get-bb/plugin-sdk": "0.4.22",
+    "@get-bb/plugin-sdk": "0.4.21",
     "@types/node": "22.18.0",
     "@types/react": "19.1.12",
     "react": "19.1.1",
