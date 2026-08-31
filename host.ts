@@ -211,20 +211,6 @@ async function searchFiles(
   };
 }
 
-async function waitForWorkspaceChange(
-  rootPath: string,
-  context: Parameters<
-    (typeof experimental_defineHostEntry) extends (...args: never[]) => never
-      ? never
-      : never
-  >[0] extends never
-    ? never
-    : never,
-): Promise<{ kind: WatchKind }> {
-  void context;
-  return { kind: "timeout" };
-}
-
 async function readTextFile(rootPath: string, relativePath: string) {
   const absolutePath = resolveWithinRoot(rootPath, relativePath);
   const fileStat = await stat(absolutePath);
@@ -297,7 +283,10 @@ export default experimental_defineHostEntry({
           }
         },
       );
-      const timeout = setTimeout(() => resolveResult("timeout"), WATCH_TIMEOUT_MS);
+      const timeout = setTimeout(
+        () => resolveResult("timeout"),
+        WATCH_TIMEOUT_MS,
+      );
       timeout.unref?.();
       const abort = () => resolveResult("timeout");
       context.signal.addEventListener("abort", abort, { once: true });
