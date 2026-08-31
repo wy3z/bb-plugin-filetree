@@ -339,7 +339,30 @@ export default experimental_defineHostEntry({
           });
         },
       );
-      activeWatches.set(watchId, subscription);
+
+      let disposed = false;
+      const disposeSubscription = async () => {
+        if (disposed) return;
+        disposed = true;
+        await subscription.dispose();
+      };
+      const abort = () => {
+        void disposeSubscription();
+      };
+      context.signal.addEventListener("abort", abort, { once: true });
+
+      if (context.signal.aborted) {
+        context.signal.removeEventListener("abort", abort);
+        await disposeSubscription();
+        return { started: false };
+      }
+
+      activeWatches.set(watchId, {
+        async dispose() {
+          context.signal.removeEventListener("abort", abort);
+          await disposeSubscription();
+        },
+      });
       return { started: true };
     },
     async stopWatch({ watchId }) {
