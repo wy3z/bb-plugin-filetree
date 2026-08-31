@@ -24,7 +24,7 @@ bb plugin install git:https://github.com/wy3z/bb-plugin-filetree.git@main
 
 Then open a thread and choose **+ → Files** in the right panel.
 
-Requires BB `>=0.40.0` and Plugin SDK `>=0.4.22`.
+Requires BB `>=0.40.0` and Plugin SDK `>=0.4.21`.
 
 ## Development
 
