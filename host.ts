@@ -1,13 +1,28 @@
 import { opendir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
-import { filetreeHostContract, type FileTreeEntry } from "./contract.js";
+import {
+  filetreeHostContract,
+  filetreeHostSignals,
+  type FileTreeEntry,
+  type WorkspaceWatchEvent,
+} from "./contract.js";
 
 const MAX_PREVIEW_BYTES = 4 * 1024 * 1024;
 const MAX_SEARCHED_ENTRIES = 30_000;
 const MAX_DIRECTORY_ENTRIES = 1_000;
 const MAX_DIRECTORY_RESULT_BYTES = 2 * 1024 * 1024;
-const WATCH_TIMEOUT_MS = 20_000;
+const WATCH_IGNORED_PATHS = [
+  ".git",
+  ".cache",
+  ".next",
+  ".pnpm-store",
+  "build",
+  "coverage",
+  "dist",
+  "node_modules",
+  "target",
+] as const;
 const DEFERRED_SEARCH_DIRS = new Set([
   ".cache",
   ".next",
@@ -19,7 +34,11 @@ const DEFERRED_SEARCH_DIRS = new Set([
   "target",
 ]);
 
-type WatchKind = "changed" | "rescan-required" | "timeout" | "watch-error";
+interface WatchSubscription {
+  dispose(): Promise<void>;
+}
+
+const activeWatches = new Map<string, WatchSubscription>();
 
 function relativeSegments(relativePath: string): string[] {
   if (relativePath === "") return [];
@@ -211,6 +230,49 @@ async function searchFiles(
   };
 }
 
+function normalizeWatchPath(rootPath: string, changedPath: string): string | null {
+  const root = path.resolve(rootPath);
+  const relative = path.isAbsolute(changedPath)
+    ? path.relative(root, path.resolve(changedPath))
+    : changedPath;
+  const normalized = relative.replace(/\\/gu, "/").replace(/^\.\//u, "");
+  if (
+    normalized === "" ||
+    normalized === ".." ||
+    normalized.startsWith("../") ||
+    path.isAbsolute(normalized)
+  ) {
+    return null;
+  }
+  return normalized;
+}
+
+function normalizeWatchEvent(
+  rootPath: string,
+  event:
+    | {
+        readonly kind: "changed";
+        readonly changes: readonly {
+          readonly path: string;
+          readonly type: "create" | "update" | "delete";
+        }[];
+      }
+    | { readonly kind: "rescan-required" }
+    | { readonly kind: "watch-error"; readonly message: string },
+): WorkspaceWatchEvent {
+  if (event.kind === "rescan-required") return event;
+  if (event.kind === "watch-error") return event;
+  return {
+    kind: "changed",
+    changes: event.changes.flatMap((change) => {
+      const relativePath = normalizeWatchPath(rootPath, change.path);
+      return relativePath === null
+        ? []
+        : [{ path: relativePath, type: change.type }];
+    }),
+  };
+}
+
 async function readTextFile(rootPath: string, relativePath: string) {
   const absolutePath = resolveWithinRoot(rootPath, relativePath);
   const fileStat = await stat(absolutePath);
@@ -250,6 +312,7 @@ async function readTextFile(rootPath: string, relativePath: string) {
 
 export default experimental_defineHostEntry({
   contract: filetreeHostContract,
+  experimental_signals: filetreeHostSignals,
   handlers: {
     async listDirectory({ rootPath, relativePath }) {
       return listDirectory(rootPath, relativePath);
@@ -257,49 +320,42 @@ export default experimental_defineHostEntry({
     async search({ rootPath, query, limit }, context) {
       return searchFiles(rootPath, query, limit, context.signal);
     },
-    async watchWorkspace({ rootPath }, context) {
-      let resolveResult!: (kind: WatchKind) => void;
-      const result = new Promise<WatchKind>((resolve) => {
-        resolveResult = resolve;
-      });
+    async startWatch({ rootPath, watchId }, context) {
+      const existing = activeWatches.get(watchId);
+      if (existing !== undefined) await existing.dispose();
+
+      const resolvedRoot = path.resolve(rootPath);
       const subscription = await context.experimental_watch(
         {
-          rootPath: path.resolve(rootPath),
-          ignoredPaths: [".git"],
+          rootPath: resolvedRoot,
+          ignoredPaths: WATCH_IGNORED_PATHS,
           debounceMs: 125,
           maxWaitMs: 750,
         },
-        (event) => {
-          switch (event.kind) {
-            case "changed":
-              resolveResult("changed");
-              break;
-            case "rescan-required":
-              resolveResult("rescan-required");
-              break;
-            case "watch-error":
-              resolveResult("watch-error");
-              break;
-          }
+        async (event) => {
+          await context.experimental_emitSignal("workspaceChanged", {
+            watchId,
+            event: normalizeWatchEvent(resolvedRoot, event),
+          });
         },
       );
-      const timeout = setTimeout(
-        () => resolveResult("timeout"),
-        WATCH_TIMEOUT_MS,
-      );
-      timeout.unref?.();
-      const abort = () => resolveResult("timeout");
-      context.signal.addEventListener("abort", abort, { once: true });
-      try {
-        return { kind: await result };
-      } finally {
-        clearTimeout(timeout);
-        context.signal.removeEventListener("abort", abort);
-        await subscription.dispose();
-      }
+      activeWatches.set(watchId, subscription);
+      return { started: true };
+    },
+    async stopWatch({ watchId }) {
+      const subscription = activeWatches.get(watchId);
+      if (subscription === undefined) return { stopped: false };
+      activeWatches.delete(watchId);
+      await subscription.dispose();
+      return { stopped: true };
     },
     async readFile({ rootPath, relativePath }) {
       return readTextFile(rootPath, relativePath);
     },
+  },
+  async dispose() {
+    const watches = [...activeWatches.values()];
+    activeWatches.clear();
+    await Promise.allSettled(watches.map((watch) => watch.dispose()));
   },
 });
