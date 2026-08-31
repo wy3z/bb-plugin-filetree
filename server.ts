@@ -14,7 +14,7 @@ interface ResolvedWorkspace {
 }
 
 interface ActiveSearch {
-  searchId: string;
+  threadId: string;
   controller: AbortController;
 }
 
@@ -33,7 +33,10 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   function rememberEarlyCancellation(searchId: string): void {
     const existing = earlyCancelledSearches.get(searchId);
     if (existing !== undefined) clearTimeout(existing);
-    const timer = setTimeout(() => earlyCancelledSearches.delete(searchId), EARLY_CANCEL_TTL_MS);
+    const timer = setTimeout(
+      () => earlyCancelledSearches.delete(searchId),
+      EARLY_CANCEL_TTL_MS,
+    );
     timer.unref?.();
     earlyCancelledSearches.set(searchId, timer);
   }
@@ -103,12 +106,8 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         throw new Error("Search cancelled");
       }
       const workspace = await requireWorkspace(threadId);
-      const previous = activeSearches.get(threadId);
-      if (previous !== undefined && previous.searchId !== searchId) {
-        previous.controller.abort(new Error("Search superseded"));
-      }
       const controller = new AbortController();
-      activeSearches.set(threadId, { searchId, controller });
+      activeSearches.set(searchId, { threadId, controller });
       try {
         return await host.call(
           "search",
@@ -116,15 +115,13 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
           { hostId: workspace.hostId, signal: controller.signal },
         );
       } finally {
-        if (activeSearches.get(threadId)?.searchId === searchId) {
-          activeSearches.delete(threadId);
-        }
+        activeSearches.delete(searchId);
       }
     },
 
     cancelSearch({ threadId, searchId }) {
-      const active = activeSearches.get(threadId);
-      if (active?.searchId === searchId) {
+      const active = activeSearches.get(searchId);
+      if (active?.threadId === threadId) {
         active.controller.abort(new Error("Search cancelled"));
         return { cancelled: true };
       }
