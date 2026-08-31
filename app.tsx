@@ -123,7 +123,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-function FileTreePanel({ threadId }: PluginThreadPanelProps) {
+function FileTreePanel(props: PluginThreadPanelProps) {
+  return <FileTreePanelForThread key={props.threadId} {...props} />;
+}
+
+function FileTreePanelForThread({ threadId }: PluginThreadPanelProps) {
   const rpc = useRpc<typeof filetreeRpcContract>();
   const navigate = useBbNavigate();
   const rootRef = useRef<HTMLDivElement | null>(null);
