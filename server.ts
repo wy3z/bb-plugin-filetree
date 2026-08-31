@@ -2,6 +2,7 @@ import path from "node:path";
 import { type BbPluginApi } from "@get-bb/plugin-sdk";
 import {
   filetreeHostContract,
+  filetreeHostSignals,
   filetreeRpcContract,
   type WorkspaceContext,
 } from "./contract.js";
@@ -15,7 +16,13 @@ interface ResolvedWorkspace {
 
 interface ActiveSearch {
   threadId: string;
+  scopeId: string;
   controller: AbortController;
+}
+
+interface ActiveWatch {
+  threadId: string;
+  hostId: string;
 }
 
 const EARLY_CANCEL_TTL_MS = 30_000;
@@ -25,10 +32,19 @@ function workspaceBasename(rootPath: string): string {
   return api.basename(rootPath) || rootPath;
 }
 
+function watchChannel(watchId: string): string {
+  return `workspace-watch:${watchId}`;
+}
+
 export default async function plugin(bb: BbPluginApi): Promise<void> {
-  const host = bb.hosts.experimental_client({ contract: filetreeHostContract });
+  const host = bb.hosts.experimental_client({
+    contract: filetreeHostContract,
+    experimental_signals: filetreeHostSignals,
+  });
   const activeSearches = new Map<string, ActiveSearch>();
+  const activeSearchByScope = new Map<string, string>();
   const earlyCancelledSearches = new Map<string, NodeJS.Timeout>();
+  const activeWatches = new Map<string, ActiveWatch>();
 
   function rememberEarlyCancellation(searchId: string): void {
     const existing = earlyCancelledSearches.get(searchId);
@@ -89,6 +105,26 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     return workspace;
   }
 
+  const unsubscribeWatchSignals = host.experimental_onSignal(
+    "workspaceChanged",
+    ({ hostId, payload }) => {
+      const active = activeWatches.get(payload.watchId);
+      if (active === undefined || active.hostId !== hostId) return;
+      bb.realtime.publish(watchChannel(payload.watchId), payload.event);
+    },
+  );
+
+  const unsubscribeWorkerExit = host.experimental_onWorkerExit(({ hostId }) => {
+    for (const [watchId, active] of activeWatches) {
+      if (active.hostId !== hostId) continue;
+      activeWatches.delete(watchId);
+      bb.realtime.publish(watchChannel(watchId), {
+        kind: "watch-error",
+        message: "Workspace watcher stopped unexpectedly.",
+      });
+    }
+  });
+
   bb.rpc.register(filetreeRpcContract, {
     workspace: ({ threadId }) => workspaceContext(threadId),
 
@@ -101,14 +137,32 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       );
     },
 
-    async search({ threadId, searchId, query, limit }) {
+    async search({ threadId, scopeId, searchId, query, limit }) {
       if (consumeEarlyCancellation(searchId)) {
         throw new Error("Search cancelled");
       }
-      const workspace = await requireWorkspace(threadId);
+
+      const previousSearchId = activeSearchByScope.get(scopeId);
+      if (previousSearchId !== undefined && previousSearchId !== searchId) {
+        activeSearches
+          .get(previousSearchId)
+          ?.controller.abort(new Error("Search superseded"));
+      }
+
       const controller = new AbortController();
-      activeSearches.set(searchId, { threadId, controller });
+      activeSearches.set(searchId, { threadId, scopeId, controller });
+      activeSearchByScope.set(scopeId, searchId);
+
       try {
+        const workspace = await requireWorkspace(threadId);
+        if (consumeEarlyCancellation(searchId)) {
+          controller.abort(new Error("Search cancelled"));
+        }
+        if (controller.signal.aborted) {
+          throw controller.signal.reason instanceof Error
+            ? controller.signal.reason
+            : new Error("Search cancelled");
+        }
         return await host.call(
           "search",
           { rootPath: workspace.rootPath, query, limit },
@@ -116,6 +170,9 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         );
       } finally {
         activeSearches.delete(searchId);
+        if (activeSearchByScope.get(scopeId) === searchId) {
+          activeSearchByScope.delete(scopeId);
+        }
       }
     },
 
@@ -129,13 +186,54 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       return { cancelled: false };
     },
 
-    async watchWorkspace({ threadId }) {
+    async startWatch({ threadId, watchId }) {
       const workspace = await requireWorkspace(threadId);
-      return host.call(
-        "watchWorkspace",
-        { rootPath: workspace.rootPath },
-        { hostId: workspace.hostId },
-      );
+      const existing = activeWatches.get(watchId);
+      if (existing !== undefined) {
+        activeWatches.delete(watchId);
+        try {
+          await host.call(
+            "stopWatch",
+            { watchId },
+            { hostId: existing.hostId },
+          );
+        } catch {}
+      }
+
+      activeWatches.set(watchId, {
+        threadId,
+        hostId: workspace.hostId,
+      });
+      try {
+        await host.call(
+          "startWatch",
+          { rootPath: workspace.rootPath, watchId },
+          { hostId: workspace.hostId },
+        );
+        return { started: true };
+      } catch (error) {
+        if (activeWatches.get(watchId)?.threadId === threadId) {
+          activeWatches.delete(watchId);
+        }
+        throw error;
+      }
+    },
+
+    async stopWatch({ threadId, watchId }) {
+      const active = activeWatches.get(watchId);
+      if (active === undefined || active.threadId !== threadId) {
+        return { stopped: false };
+      }
+      activeWatches.delete(watchId);
+      try {
+        return await host.call(
+          "stopWatch",
+          { watchId },
+          { hostId: active.hostId },
+        );
+      } catch {
+        return { stopped: false };
+      }
     },
 
     async readFile({ threadId, path: relativePath }) {
@@ -148,12 +246,24 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     },
   });
 
-  bb.onDispose(() => {
+  bb.onDispose(async () => {
+    unsubscribeWatchSignals();
+    unsubscribeWorkerExit();
+
     for (const active of activeSearches.values()) {
       active.controller.abort(new Error("Plugin disposed"));
     }
     activeSearches.clear();
+    activeSearchByScope.clear();
     for (const timer of earlyCancelledSearches.values()) clearTimeout(timer);
     earlyCancelledSearches.clear();
+
+    const watches = [...activeWatches.entries()];
+    activeWatches.clear();
+    await Promise.allSettled(
+      watches.map(([watchId, active]) =>
+        host.call("stopWatch", { watchId }, { hostId: active.hostId }),
+      ),
+    );
   });
 }
