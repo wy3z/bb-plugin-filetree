@@ -49,7 +49,6 @@ describe("Files panel thread scoping", () => {
     const threadBWorkspace = deferred<WorkspaceContext>();
     const workspaceCalls: string[] = [];
     const directoryCalls: Array<{ threadId: string; path: string }> = [];
-    const pendingWatch = new Promise<never>(() => {});
 
     const registration = app.threadPanelActions.find(
       (action) => action.id === "files",
@@ -86,8 +85,11 @@ describe("Files panel thread scoping", () => {
           cancelSearch() {
             return { cancelled: false };
           },
-          watchWorkspace() {
-            return pendingWatch;
+          startWatch() {
+            return { started: true };
+          },
+          stopWatch() {
+            return { stopped: true };
           },
           readFile({ threadId, path }) {
             return {
@@ -155,6 +157,101 @@ describe("Files panel thread scoping", () => {
         location: null,
       },
     });
+
+    slot.lifecycle.unmount();
+  });
+
+  it("marks a collapsed changed directory stale and reloads it when reopened", async () => {
+    let srcLoads = 0;
+    const registration = app.threadPanelActions.find(
+      (action) => action.id === "files",
+    );
+    expect(registration).toBeDefined();
+
+    const slot = renderSlot<
+      PluginThreadPanelProps,
+      typeof filetreeRpcContract
+    >(
+      registration!,
+      { threadId: "thread-a", params: null },
+      {
+        rpc: {
+          workspace() {
+            return {
+              kind: "ready",
+              environmentId: "environment-a",
+              rootName: "repo-a",
+              rootPath: "/work/repo-a",
+            };
+          },
+          listDirectory({ path }) {
+            if (path === "") {
+              return {
+                entries: [{ name: "src", path: "src", kind: "directory" }],
+                truncated: false,
+              };
+            }
+            srcLoads += 1;
+            return {
+              entries:
+                srcLoads === 1
+                  ? [{ name: "old.ts", path: "src/old.ts", kind: "file" }]
+                  : [
+                      { name: "new.ts", path: "src/new.ts", kind: "file" },
+                      { name: "old.ts", path: "src/old.ts", kind: "file" },
+                    ],
+              truncated: false,
+            };
+          },
+          search() {
+            return { matches: [], truncated: false };
+          },
+          cancelSearch() {
+            return { cancelled: false };
+          },
+          startWatch() {
+            return { started: true };
+          },
+          stopWatch() {
+            return { stopped: true };
+          },
+          readFile() {
+            return {
+              kind: "text",
+              content: "",
+              modifiedAtMs: 1,
+              sizeBytes: 0,
+            };
+          },
+        },
+      },
+    );
+
+    const src = await screen.findByRole("button", { name: /src/u });
+    fireEvent.click(src);
+    await screen.findByText("old.ts");
+    expect(srcLoads).toBe(1);
+
+    fireEvent.click(src);
+    await waitFor(() => {
+      expect(screen.queryByText("old.ts")).toBeNull();
+    });
+
+    const startWatchCall = slot.inspection.rpcCalls.find(
+      (call) => call.method === "startWatch",
+    );
+    expect(startWatchCall).toBeDefined();
+    const watchId = (startWatchCall!.input as { watchId: string }).watchId;
+
+    await slot.behavior.emitRealtime(`workspace-watch:${watchId}`, {
+      kind: "changed",
+      changes: [{ path: "src/new.ts", type: "create" }],
+    });
+    expect(srcLoads).toBe(1);
+
+    fireEvent.click(src);
+    await screen.findByText("new.ts");
+    expect(srcLoads).toBe(2);
 
     slot.lifecycle.unmount();
   });
