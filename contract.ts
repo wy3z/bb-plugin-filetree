@@ -11,6 +11,13 @@ export const fileTreeEntrySchema = z
 
 export type FileTreeEntry = z.infer<typeof fileTreeEntrySchema>;
 
+const directoryListingSchema = z
+  .object({
+    entries: z.array(fileTreeEntrySchema),
+    truncated: z.boolean(),
+  })
+  .strict();
+
 export const workspaceContextSchema = z.discriminatedUnion("kind", [
   z
     .object({
@@ -57,6 +64,21 @@ const threadPathSchema = z
   })
   .strict();
 
+const searchSchema = z
+  .object({
+    threadId: z.string().min(1),
+    searchId: z.string().min(1).max(200),
+    query: z.string().min(1).max(200),
+    limit: z.number().int().min(1).max(200),
+  })
+  .strict();
+
+const watchResultSchema = z
+  .object({
+    kind: z.enum(["changed", "rescan-required", "timeout", "watch-error"]),
+  })
+  .strict();
+
 export const filetreeRpcContract = defineRpcContract({
   workspace: {
     input: z.object({ threadId: z.string().min(1) }).strict(),
@@ -64,22 +86,29 @@ export const filetreeRpcContract = defineRpcContract({
   },
   listDirectory: {
     input: threadPathSchema,
-    output: z.object({ entries: z.array(fileTreeEntrySchema) }).strict(),
+    output: directoryListingSchema,
   },
   search: {
-    input: z
-      .object({
-        threadId: z.string().min(1),
-        query: z.string().min(1).max(200),
-        limit: z.number().int().min(1).max(200),
-      })
-      .strict(),
+    input: searchSchema,
     output: z
       .object({
         matches: z.array(fileTreeEntrySchema),
         truncated: z.boolean(),
       })
       .strict(),
+  },
+  cancelSearch: {
+    input: z
+      .object({
+        threadId: z.string().min(1),
+        searchId: z.string().min(1).max(200),
+      })
+      .strict(),
+    output: z.object({ cancelled: z.boolean() }).strict(),
+  },
+  watchWorkspace: {
+    input: z.object({ threadId: z.string().min(1) }).strict(),
+    output: watchResultSchema,
   },
   readFile: {
     input: threadPathSchema,
@@ -95,7 +124,7 @@ export const filetreeHostContract = defineRpcContract({
         relativePath: z.string(),
       })
       .strict(),
-    output: z.object({ entries: z.array(fileTreeEntrySchema) }).strict(),
+    output: directoryListingSchema,
   },
   search: {
     input: z
@@ -111,6 +140,10 @@ export const filetreeHostContract = defineRpcContract({
         truncated: z.boolean(),
       })
       .strict(),
+  },
+  watchWorkspace: {
+    input: z.object({ rootPath: z.string().min(1) }).strict(),
+    output: watchResultSchema,
   },
   readFile: {
     input: z
