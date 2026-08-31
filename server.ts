@@ -13,6 +13,13 @@ interface ResolvedWorkspace {
   rootPath: string;
 }
 
+interface ActiveSearch {
+  searchId: string;
+  controller: AbortController;
+}
+
+const EARLY_CANCEL_TTL_MS = 30_000;
+
 function workspaceBasename(rootPath: string): string {
   const api = path.win32.isAbsolute(rootPath) ? path.win32 : path.posix;
   return api.basename(rootPath) || rootPath;
@@ -20,6 +27,24 @@ function workspaceBasename(rootPath: string): string {
 
 export default async function plugin(bb: BbPluginApi): Promise<void> {
   const host = bb.hosts.experimental_client({ contract: filetreeHostContract });
+  const activeSearches = new Map<string, ActiveSearch>();
+  const earlyCancelledSearches = new Map<string, NodeJS.Timeout>();
+
+  function rememberEarlyCancellation(searchId: string): void {
+    const existing = earlyCancelledSearches.get(searchId);
+    if (existing !== undefined) clearTimeout(existing);
+    const timer = setTimeout(() => earlyCancelledSearches.delete(searchId), EARLY_CANCEL_TTL_MS);
+    timer.unref?.();
+    earlyCancelledSearches.set(searchId, timer);
+  }
+
+  function consumeEarlyCancellation(searchId: string): boolean {
+    const timer = earlyCancelledSearches.get(searchId);
+    if (timer === undefined) return false;
+    clearTimeout(timer);
+    earlyCancelledSearches.delete(searchId);
+    return true;
+  }
 
   async function resolveWorkspace(
     threadId: string,
@@ -73,11 +98,45 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       );
     },
 
-    async search({ threadId, query, limit }) {
+    async search({ threadId, searchId, query, limit }) {
+      if (consumeEarlyCancellation(searchId)) {
+        throw new Error("Search cancelled");
+      }
+      const workspace = await requireWorkspace(threadId);
+      const previous = activeSearches.get(threadId);
+      if (previous !== undefined && previous.searchId !== searchId) {
+        previous.controller.abort(new Error("Search superseded"));
+      }
+      const controller = new AbortController();
+      activeSearches.set(threadId, { searchId, controller });
+      try {
+        return await host.call(
+          "search",
+          { rootPath: workspace.rootPath, query, limit },
+          { hostId: workspace.hostId, signal: controller.signal },
+        );
+      } finally {
+        if (activeSearches.get(threadId)?.searchId === searchId) {
+          activeSearches.delete(threadId);
+        }
+      }
+    },
+
+    cancelSearch({ threadId, searchId }) {
+      const active = activeSearches.get(threadId);
+      if (active?.searchId === searchId) {
+        active.controller.abort(new Error("Search cancelled"));
+        return { cancelled: true };
+      }
+      rememberEarlyCancellation(searchId);
+      return { cancelled: false };
+    },
+
+    async watchWorkspace({ threadId }) {
       const workspace = await requireWorkspace(threadId);
       return host.call(
-        "search",
-        { rootPath: workspace.rootPath, query, limit },
+        "watchWorkspace",
+        { rootPath: workspace.rootPath },
         { hostId: workspace.hostId },
       );
     },
@@ -90,5 +149,14 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         { hostId: workspace.hostId },
       );
     },
+  });
+
+  bb.onDispose(() => {
+    for (const active of activeSearches.values()) {
+      active.controller.abort(new Error("Plugin disposed"));
+    }
+    activeSearches.clear();
+    for (const timer of earlyCancelledSearches.values()) clearTimeout(timer);
+    earlyCancelledSearches.clear();
   });
 }
