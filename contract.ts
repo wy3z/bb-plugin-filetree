@@ -57,6 +57,42 @@ export const filePreviewSchema = z.discriminatedUnion("kind", [
 
 export type FilePreview = z.infer<typeof filePreviewSchema>;
 
+export const workspaceWatchChangeSchema = z
+  .object({
+    path: z.string(),
+    type: z.enum(["create", "update", "delete"]),
+  })
+  .strict();
+
+export const workspaceWatchEventSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("changed"),
+      changes: z.array(workspaceWatchChangeSchema),
+    })
+    .strict(),
+  z.object({ kind: z.literal("rescan-required") }).strict(),
+  z
+    .object({
+      kind: z.literal("watch-error"),
+      message: z.string(),
+    })
+    .strict(),
+]);
+
+export type WorkspaceWatchEvent = z.infer<typeof workspaceWatchEventSchema>;
+
+export const filetreeHostSignals = {
+  workspaceChanged: {
+    payload: z
+      .object({
+        watchId: z.string().min(1).max(200),
+        event: workspaceWatchEventSchema,
+      })
+      .strict(),
+  },
+} as const;
+
 const threadPathSchema = z
   .object({
     threadId: z.string().min(1),
@@ -67,15 +103,17 @@ const threadPathSchema = z
 const searchSchema = z
   .object({
     threadId: z.string().min(1),
+    scopeId: z.string().min(1).max(200),
     searchId: z.string().min(1).max(200),
     query: z.string().min(1).max(200),
     limit: z.number().int().min(1).max(200),
   })
   .strict();
 
-const watchResultSchema = z
+const watchSchema = z
   .object({
-    kind: z.enum(["changed", "rescan-required", "timeout", "watch-error"]),
+    threadId: z.string().min(1),
+    watchId: z.string().min(1).max(200),
   })
   .strict();
 
@@ -106,9 +144,13 @@ export const filetreeRpcContract = defineRpcContract({
       .strict(),
     output: z.object({ cancelled: z.boolean() }).strict(),
   },
-  watchWorkspace: {
-    input: z.object({ threadId: z.string().min(1) }).strict(),
-    output: watchResultSchema,
+  startWatch: {
+    input: watchSchema,
+    output: z.object({ started: z.boolean() }).strict(),
+  },
+  stopWatch: {
+    input: watchSchema,
+    output: z.object({ stopped: z.boolean() }).strict(),
   },
   readFile: {
     input: threadPathSchema,
@@ -141,9 +183,18 @@ export const filetreeHostContract = defineRpcContract({
       })
       .strict(),
   },
-  watchWorkspace: {
-    input: z.object({ rootPath: z.string().min(1) }).strict(),
-    output: watchResultSchema,
+  startWatch: {
+    input: z
+      .object({
+        rootPath: z.string().min(1),
+        watchId: z.string().min(1).max(200),
+      })
+      .strict(),
+    output: z.object({ started: z.boolean() }).strict(),
+  },
+  stopWatch: {
+    input: z.object({ watchId: z.string().min(1).max(200) }).strict(),
+    output: z.object({ stopped: z.boolean() }).strict(),
   },
   readFile: {
     input: z
