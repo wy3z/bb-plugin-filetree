@@ -1,14 +1,15 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
   definePluginApp,
+  experimental_FileLink as FileLink,
   experimental_SourceCode as SourceCode,
+  useBbNavigate,
   useRpc,
   type PluginThreadPanelProps,
 } from "@get-bb/plugin-sdk/app";
@@ -38,6 +39,9 @@ type PreviewState =
   | { status: "loading" }
   | { status: "ready"; preview: FilePreview }
   | { status: "error"; message: string };
+
+type ReadyWorkspace = Extract<WorkspaceContext, { kind: "ready" }>;
+type LineOverflowMode = "scroll" | "wrap";
 
 interface ContextMenuState {
   x: number;
@@ -109,6 +113,7 @@ function clampWidth(width: number, containerWidth: number): number {
 
 function FileTreePanel({ threadId }: PluginThreadPanelProps) {
   const rpc = useRpc<typeof filetreeRpcContract>();
+  const navigate = useBbNavigate();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceContext | null>(null);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
@@ -123,6 +128,8 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
     status: "idle",
   });
   const [previewNonce, setPreviewNonce] = useState(0);
+  const [lineOverflowMode, setLineOverflowMode] =
+    useState<LineOverflowMode>("scroll");
   const [query, setQuery] = useState("");
   const [searchState, setSearchState] = useState<{
     status: "idle" | "loading" | "ready" | "error";
@@ -284,7 +291,7 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
     if (entry.kind === "file") setSelectedPath(entry.path);
   }, []);
 
-  const openContextMenu = useCallback(
+  const openDirectoryContextMenu = useCallback(
     (event: React.MouseEvent, entry: FileTreeEntry) => {
       event.preventDefault();
       setContextMenu({ x: event.clientX, y: event.clientY, entry });
@@ -368,6 +375,25 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
   const readyWorkspace = workspace?.kind === "ready" ? workspace : null;
   const activePreview = previewState.status === "ready" ? previewState.preview : null;
   const viewerTitle = selectedPath === null ? "Files" : basename(selectedPath);
+  const selectedFileIntent =
+    readyWorkspace !== null && selectedPath !== null
+      ? {
+          target: {
+            kind: "workspace" as const,
+            environmentId: readyWorkspace.environmentId,
+            path: selectedPath,
+          },
+          location: null,
+        }
+      : null;
+
+  const openSelectedExternally = () => {
+    if (selectedFileIntent === null) return;
+    if (!navigate.experimental_openFileExternally(selectedFileIntent)) {
+      setNotice("No external file target is available");
+      window.setTimeout(() => setNotice(null), 1600);
+    }
+  };
 
   return (
     <div ref={rootRef} className="bb-ft-root">
@@ -390,21 +416,60 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
                 <button
                   className="bb-ft-icon-button"
                   type="button"
-                  title="Copy relative path"
-                  aria-label="Copy relative path"
-                  onClick={() => copyText(selectedPath, "Path copied")}
-                >
-                  <CopyIcon />
-                </button>
-                <button
-                  className="bb-ft-icon-button"
-                  type="button"
                   title="Refresh file"
                   aria-label="Refresh file"
                   onClick={() => setPreviewNonce((current) => current + 1)}
                 >
                   <RefreshIcon />
                 </button>
+                {activePreview?.kind === "text" ? (
+                  <button
+                    className="bb-ft-icon-button"
+                    type="button"
+                    title="Copy file contents"
+                    aria-label="Copy file contents"
+                    onClick={() =>
+                      copyText(activePreview.content, "File contents copied")
+                    }
+                  >
+                    <CopyIcon />
+                  </button>
+                ) : null}
+                {selectedFileIntent !== null ? (
+                  <button
+                    className="bb-ft-icon-button"
+                    type="button"
+                    title="Open in editor"
+                    aria-label="Open in editor"
+                    onClick={openSelectedExternally}
+                  >
+                    <ExternalLinkIcon />
+                  </button>
+                ) : null}
+                {activePreview?.kind === "text" ? (
+                  <button
+                    className="bb-ft-icon-button"
+                    type="button"
+                    title={
+                      lineOverflowMode === "wrap"
+                        ? "Disable line wrap"
+                        : "Wrap lines"
+                    }
+                    aria-label={
+                      lineOverflowMode === "wrap"
+                        ? "Disable line wrap"
+                        : "Wrap lines"
+                    }
+                    aria-pressed={lineOverflowMode === "wrap"}
+                    onClick={() =>
+                      setLineOverflowMode((current) =>
+                        current === "wrap" ? "scroll" : "wrap",
+                      )
+                    }
+                  >
+                    <WrapIcon />
+                  </button>
+                ) : null}
               </>
             ) : null}
           </div>
@@ -420,7 +485,7 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
             <SourceCode
               content={previewState.preview.content}
               path={selectedPath}
-              overflow="scroll"
+              overflow={lineOverflowMode}
               className="bb-ft-source-code"
             />
           ) : previewState.status === "ready" && previewState.preview.kind === "unsupported" ? (
@@ -485,9 +550,9 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
           ) : query.trim() !== "" ? (
             <SearchResults
               state={searchState}
+              workspace={workspace}
               selectedPath={selectedPath}
               onSelect={selectFile}
-              onContextMenu={openContextMenu}
             />
           ) : rootDirectory?.status === "loading" || rootDirectory === undefined ? (
             <TreeMessage>Loading files…</TreeMessage>
@@ -502,13 +567,14 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
             <DirectoryRows
               entries={rootDirectory.entries}
               level={0}
+              workspace={workspace}
               directories={directories}
               expanded={expanded}
               selectedPath={selectedPath}
               onSelect={selectFile}
               onToggle={toggleDirectory}
               onRetry={loadDirectory}
-              onContextMenu={openContextMenu}
+              onDirectoryContextMenu={openDirectoryContextMenu}
             />
           )}
         </div>
@@ -522,7 +588,7 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
       </aside>
 
       {contextMenu !== null ? (
-        <ContextMenu
+        <DirectoryContextMenu
           state={contextMenu}
           rootPath={readyWorkspace?.rootPath ?? null}
           onCopy={copyText}
@@ -536,23 +602,28 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
 function DirectoryRows({
   entries,
   level,
+  workspace,
   directories,
   expanded,
   selectedPath,
   onSelect,
   onToggle,
   onRetry,
-  onContextMenu,
+  onDirectoryContextMenu,
 }: {
   entries: readonly FileTreeEntry[];
   level: number;
+  workspace: ReadyWorkspace;
   directories: Readonly<Record<string, DirectoryState>>;
   expanded: ReadonlySet<string>;
   selectedPath: string | null;
   onSelect: (entry: FileTreeEntry) => void;
   onToggle: (entry: FileTreeEntry) => void;
   onRetry: (path: string) => Promise<void>;
-  onContextMenu: (event: React.MouseEvent, entry: FileTreeEntry) => void;
+  onDirectoryContextMenu: (
+    event: React.MouseEvent,
+    entry: FileTreeEntry,
+  ) => void;
 }) {
   return (
     <>
@@ -562,34 +633,58 @@ function DirectoryRows({
         const childState = isDirectory ? directories[entry.path] : undefined;
         return (
           <div key={entry.path}>
-            <button
-              type="button"
-              className={`bb-ft-row ${selectedPath === entry.path ? "is-selected" : ""}`}
-              style={{ paddingLeft: 8 + level * 14 }}
-              title={entry.path}
-              aria-expanded={isDirectory ? isOpen : undefined}
-              aria-current={selectedPath === entry.path ? "true" : undefined}
-              onClick={() => (isDirectory ? onToggle(entry) : onSelect(entry))}
-              onContextMenu={(event) => onContextMenu(event, entry)}
-            >
-              <span className="bb-ft-chevron-slot">
-                {isDirectory ? <ChevronIcon open={isOpen} /> : null}
-              </span>
-              {isDirectory ? <FolderIcon open={isOpen} /> : <FileIcon path={entry.path} />}
-              <span className="bb-ft-row-name">{entry.name}</span>
-            </button>
+            {isDirectory ? (
+              <button
+                type="button"
+                className="bb-ft-row"
+                style={{ paddingLeft: 8 + level * 14 }}
+                title={entry.path}
+                aria-expanded={isOpen}
+                onClick={() => onToggle(entry)}
+                onContextMenu={(event) =>
+                  onDirectoryContextMenu(event, entry)
+                }
+              >
+                <span className="bb-ft-chevron-slot">
+                  <ChevronIcon open={isOpen} />
+                </span>
+                <FolderIcon open={isOpen} />
+                <span className="bb-ft-row-name">{entry.name}</span>
+              </button>
+            ) : (
+              <FileLink
+                target={{
+                  kind: "workspace",
+                  environmentId: workspace.environmentId,
+                  path: entry.path,
+                }}
+                className={`bb-ft-row ${selectedPath === entry.path ? "is-selected" : ""}`}
+                style={{ paddingLeft: 8 + level * 14 }}
+                title={entry.path}
+                aria-current={selectedPath === entry.path ? "true" : undefined}
+                onClick={(event) => {
+                  event.preventDefault();
+                  onSelect(entry);
+                }}
+              >
+                <span className="bb-ft-chevron-slot" />
+                <FileIcon path={entry.path} />
+                <span className="bb-ft-row-name">{entry.name}</span>
+              </FileLink>
+            )}
             {isDirectory && isOpen ? (
               childState?.status === "ready" ? (
                 <DirectoryRows
                   entries={childState.entries}
                   level={level + 1}
+                  workspace={workspace}
                   directories={directories}
                   expanded={expanded}
                   selectedPath={selectedPath}
                   onSelect={onSelect}
                   onToggle={onToggle}
                   onRetry={onRetry}
-                  onContextMenu={onContextMenu}
+                  onDirectoryContextMenu={onDirectoryContextMenu}
                 />
               ) : childState?.status === "error" ? (
                 <div
@@ -619,9 +714,9 @@ function DirectoryRows({
 
 function SearchResults({
   state,
+  workspace,
   selectedPath,
   onSelect,
-  onContextMenu,
 }: {
   state: {
     status: "idle" | "loading" | "ready" | "error";
@@ -629,9 +724,9 @@ function SearchResults({
     truncated: boolean;
     message?: string;
   };
+  workspace: ReadyWorkspace;
   selectedPath: string | null;
   onSelect: (entry: FileTreeEntry) => void;
-  onContextMenu: (event: React.MouseEvent, entry: FileTreeEntry) => void;
 }) {
   if (state.status === "loading" || state.status === "idle") {
     return <TreeMessage>Searching…</TreeMessage>;
@@ -645,20 +740,29 @@ function SearchResults({
   return (
     <div className="bb-ft-search-results">
       {state.matches.map((entry) => (
-        <button
-          type="button"
+        <FileLink
+          target={{
+            kind: "workspace",
+            environmentId: workspace.environmentId,
+            path: entry.path,
+          }}
           key={entry.path}
           className={`bb-ft-search-result ${selectedPath === entry.path ? "is-selected" : ""}`}
           title={entry.path}
-          onClick={() => onSelect(entry)}
-          onContextMenu={(event) => onContextMenu(event, entry)}
+          aria-current={selectedPath === entry.path ? "true" : undefined}
+          onClick={(event) => {
+            event.preventDefault();
+            onSelect(entry);
+          }}
         >
           <FileIcon path={entry.path} />
           <span className="bb-ft-search-result-copy">
             <span className="bb-ft-search-result-name">{entry.name}</span>
-            <span className="bb-ft-search-result-path">{dirname(entry.path) || "."}</span>
+            <span className="bb-ft-search-result-path">
+              {dirname(entry.path) || "."}
+            </span>
           </span>
-        </button>
+        </FileLink>
       ))}
       {state.truncated ? (
         <div className="bb-ft-search-truncated">More matches may exist.</div>
@@ -667,7 +771,7 @@ function SearchResults({
   );
 }
 
-function ContextMenu({
+function DirectoryContextMenu({
   state,
   rootPath,
   onCopy,
@@ -689,19 +793,32 @@ function ContextMenu({
       role="menu"
       onPointerDown={(event) => event.stopPropagation()}
     >
-      <button type="button" role="menuitem" onClick={() => copy(state.entry.path, "Path copied")}>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => copy(state.entry.path, "Path copied")}
+      >
         Copy relative path
       </button>
       {rootPath !== null ? (
         <button
           type="button"
           role="menuitem"
-          onClick={() => copy(absolutePath(rootPath, state.entry.path), "Absolute path copied")}
+          onClick={() =>
+            copy(
+              absolutePath(rootPath, state.entry.path),
+              "Absolute path copied",
+            )
+          }
         >
           Copy absolute path
         </button>
       ) : null}
-      <button type="button" role="menuitem" onClick={() => copy(state.entry.name, "Filename copied")}>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => copy(state.entry.name, "Filename copied")}
+      >
         Copy filename
       </button>
     </div>
@@ -738,17 +855,36 @@ function TreeMessage({
 
 function ChevronIcon({ open }: { open: boolean }) {
   return (
-    <svg className={`bb-ft-chevron ${open ? "is-open" : ""}`} viewBox="0 0 16 16" aria-hidden>
-      <path d="M5.5 3.5 10 8l-4.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      className={`bb-ft-chevron ${open ? "is-open" : ""}`}
+      viewBox="0 0 16 16"
+      aria-hidden
+    >
+      <path
+        d="M5.5 3.5 10 8l-4.5 4.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
 function FolderIcon({ open = false }: { open?: boolean }) {
   return (
-    <svg className="bb-ft-entry-icon bb-ft-folder-icon" viewBox="0 0 16 16" aria-hidden>
+    <svg
+      className="bb-ft-entry-icon bb-ft-folder-icon"
+      viewBox="0 0 16 16"
+      aria-hidden
+    >
       <path
-        d={open ? "M1.75 5.75h12.5l-1.45 6.5H3.2l-1.45-6.5Zm.75-2h4l1 1.25h6v.75H2.5v-2Z" : "M2 3.25h4.2l1.2 1.5H14v7.75H2V3.25Z"}
+        d={
+          open
+            ? "M1.75 5.75h12.5l-1.45 6.5H3.2l-1.45-6.5Zm.75-2h4l1 1.25h6v.75H2.5v-2Z"
+            : "M2 3.25h4.2l1.2 1.5H14v7.75H2V3.25Z"
+        }
         fill="currentColor"
       />
     </svg>
@@ -756,7 +892,8 @@ function FolderIcon({ open = false }: { open?: boolean }) {
 }
 
 function FileIcon({ path: filePath }: { path: string }) {
-  const extension = basename(filePath).split(".").at(-1)?.toLocaleLowerCase() ?? "";
+  const extension =
+    basename(filePath).split(".").at(-1)?.toLocaleLowerCase() ?? "";
   const accent = ["ts", "tsx", "js", "jsx"].includes(extension)
     ? "code"
     : ["json", "yaml", "yml", "toml"].includes(extension)
@@ -765,8 +902,18 @@ function FileIcon({ path: filePath }: { path: string }) {
         ? "docs"
         : "default";
   return (
-    <svg className={`bb-ft-entry-icon bb-ft-file-icon is-${accent}`} viewBox="0 0 16 16" aria-hidden>
-      <path d="M3 1.75h6l4 4v8.5H3V1.75Zm6 .75v3.75h3.75" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+    <svg
+      className={`bb-ft-entry-icon bb-ft-file-icon is-${accent}`}
+      viewBox="0 0 16 16"
+      aria-hidden
+    >
+      <path
+        d="M3 1.75h6l4 4v8.5H3V1.75Zm6 .75v3.75h3.75"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -774,8 +921,20 @@ function FileIcon({ path: filePath }: { path: string }) {
 function SearchIcon() {
   return (
     <svg className="bb-ft-search-icon" viewBox="0 0 16 16" aria-hidden>
-      <circle cx="7" cy="7" r="4" fill="none" stroke="currentColor" strokeWidth="1.4" />
-      <path d="m10.1 10.1 3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <circle
+        cx="7"
+        cy="7"
+        r="4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+      <path
+        d="m10.1 10.1 3 3"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -783,8 +942,21 @@ function SearchIcon() {
 function RefreshIcon() {
   return (
     <svg viewBox="0 0 16 16" aria-hidden>
-      <path d="M12.5 5.25A5 5 0 1 0 13 9" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
-      <path d="M9.75 2.75h3v3" fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M12.5 5.25A5 5 0 1 0 13 9"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+      />
+      <path
+        d="M9.75 2.75h3v3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -792,8 +964,66 @@ function RefreshIcon() {
 function CopyIcon() {
   return (
     <svg viewBox="0 0 16 16" aria-hidden>
-      <rect x="5" y="5" width="7.5" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M3.5 10.5H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h6.5a1 1 0 0 1 1 1v.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      <rect
+        x="5"
+        y="5"
+        width="7.5"
+        height="8"
+        rx="1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
+      <path
+        d="M3.5 10.5H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h6.5a1 1 0 0 1 1 1v.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
+    </svg>
+  );
+}
+
+function ExternalLinkIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden>
+      <path
+        d="M9.5 2.5h4v4M13.25 2.75 7.5 8.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7 3.5H3.75A1.25 1.25 0 0 0 2.5 4.75v7.5a1.25 1.25 0 0 0 1.25 1.25h7.5a1.25 1.25 0 0 0 1.25-1.25V9"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function WrapIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden>
+      <path
+        d="M2.5 4h8.25a2.75 2.75 0 0 1 0 5.5H6.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+      />
+      <path
+        d="m8 7.75-1.75 1.75L8 11.25M2.5 7h5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
