@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --ignore-scripts
+      - run: npm install --ignore-scripts --legacy-peer-deps
       - run: npm run typecheck
       - run: npm test
       - run: npx --yes --package bb-app@0.40.0 bb plugin build
