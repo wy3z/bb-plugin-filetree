@@ -1,10 +1,13 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import { opendir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
 import { filetreeHostContract, type FileTreeEntry } from "./contract.js";
 
 const MAX_PREVIEW_BYTES = 4 * 1024 * 1024;
 const MAX_SEARCHED_ENTRIES = 30_000;
+const MAX_DIRECTORY_ENTRIES = 1_000;
+const MAX_DIRECTORY_RESULT_BYTES = 2 * 1024 * 1024;
+const WATCH_TIMEOUT_MS = 20_000;
 const DEFERRED_SEARCH_DIRS = new Set([
   ".cache",
   ".next",
@@ -16,13 +19,18 @@ const DEFERRED_SEARCH_DIRS = new Set([
   "target",
 ]);
 
+type WatchKind = "changed" | "rescan-required" | "timeout" | "watch-error";
+
 function relativeSegments(relativePath: string): string[] {
   if (relativePath === "") return [];
   const segments = relativePath.split("/");
   if (
     segments.some(
       (segment) =>
-        segment.length === 0 || segment === "." || segment === ".." || segment.includes("\0"),
+        segment.length === 0 ||
+        segment === "." ||
+        segment === ".." ||
+        segment.includes("\0"),
     )
   ) {
     throw new Error("Invalid workspace-relative path");
@@ -59,23 +67,47 @@ function compareEntries(first: FileTreeEntry, second: FileTreeEntry): number {
   });
 }
 
-async function listDirectory(
-  rootPath: string,
-  relativePath: string,
-): Promise<FileTreeEntry[]> {
+function isVisibleEntry(dirent: {
+  name: string;
+  isSymbolicLink(): boolean;
+  isDirectory(): boolean;
+  isFile(): boolean;
+}): boolean {
+  return (
+    dirent.name !== ".git" &&
+    !dirent.isSymbolicLink() &&
+    (dirent.isDirectory() || dirent.isFile())
+  );
+}
+
+async function listDirectory(rootPath: string, relativePath: string) {
   const absolutePath = resolveWithinRoot(rootPath, relativePath);
-  const dirents = await readdir(absolutePath, { withFileTypes: true });
+  const directory = await opendir(absolutePath);
   const entries: FileTreeEntry[] = [];
-  for (const dirent of dirents) {
-    if (dirent.name === ".git" || dirent.isSymbolicLink()) continue;
-    if (!dirent.isDirectory() && !dirent.isFile()) continue;
-    entries.push({
+  let resultBytes = 0;
+  let truncated = false;
+
+  for await (const dirent of directory) {
+    if (!isVisibleEntry(dirent)) continue;
+    const entry: FileTreeEntry = {
       name: dirent.name,
       path: childPath(relativePath, dirent.name),
       kind: dirent.isDirectory() ? "directory" : "file",
-    });
+    };
+    const entryBytes = Buffer.byteLength(JSON.stringify(entry));
+    if (
+      entries.length >= MAX_DIRECTORY_ENTRIES ||
+      resultBytes + entryBytes > MAX_DIRECTORY_RESULT_BYTES
+    ) {
+      truncated = true;
+      break;
+    }
+    entries.push(entry);
+    resultBytes += entryBytes;
   }
-  return entries.sort(compareEntries);
+
+  entries.sort(compareEntries);
+  return { entries, truncated };
 }
 
 function matchesQuery(relativePath: string, query: string): boolean {
@@ -92,6 +124,13 @@ function searchPriority(name: string): number {
   return DEFERRED_SEARCH_DIRS.has(name) ? 1 : 0;
 }
 
+function throwIfAborted(signal: AbortSignal): void {
+  if (!signal.aborted) return;
+  throw signal.reason instanceof Error
+    ? signal.reason
+    : new Error("Search cancelled");
+}
+
 async function searchFiles(
   rootPath: string,
   query: string,
@@ -104,43 +143,59 @@ async function searchFiles(
   ];
   const deferred: Array<{ absolutePath: string; relativePath: string }> = [];
   const matches: FileTreeEntry[] = [];
+  let queueIndex = 0;
+  let deferredIndex = 0;
   let scanned = 0;
+  let scanLimitReached = false;
 
-  while ((queue.length > 0 || deferred.length > 0) && scanned < MAX_SEARCHED_ENTRIES) {
-    if (signal.aborted) throw new Error("Search cancelled");
-    const current = queue.shift() ?? deferred.shift();
+  while (queueIndex < queue.length || deferredIndex < deferred.length) {
+    throwIfAborted(signal);
+    const current =
+      queueIndex < queue.length
+        ? queue[queueIndex++]
+        : deferred[deferredIndex++];
     if (current === undefined) break;
 
-    let dirents;
+    let directory;
     try {
-      dirents = await readdir(current.absolutePath, { withFileTypes: true });
+      directory = await opendir(current.absolutePath);
     } catch {
       continue;
     }
 
-    for (const dirent of dirents) {
-      if (signal.aborted) throw new Error("Search cancelled");
-      if (dirent.name === ".git" || dirent.isSymbolicLink()) continue;
-      if (!dirent.isDirectory() && !dirent.isFile()) continue;
-      scanned += 1;
-      const relativePath = childPath(current.relativePath, dirent.name);
+    try {
+      for await (const dirent of directory) {
+        throwIfAborted(signal);
+        if (scanned >= MAX_SEARCHED_ENTRIES) {
+          scanLimitReached = true;
+          break;
+        }
+        scanned += 1;
+        if (!isVisibleEntry(dirent)) continue;
 
-      if (dirent.isFile() && matchesQuery(relativePath, query)) {
-        matches.push({ name: dirent.name, path: relativePath, kind: "file" });
-        if (matches.length >= limit) {
-          return { matches, truncated: true };
+        const relativePath = childPath(current.relativePath, dirent.name);
+        if (dirent.isFile() && matchesQuery(relativePath, query)) {
+          matches.push({ name: dirent.name, path: relativePath, kind: "file" });
+          if (matches.length >= limit) {
+            return { matches, truncated: true };
+          }
+        }
+
+        if (dirent.isDirectory()) {
+          const next = {
+            absolutePath: path.join(current.absolutePath, dirent.name),
+            relativePath,
+          };
+          if (searchPriority(dirent.name) === 0) queue.push(next);
+          else deferred.push(next);
         }
       }
-
-      if (dirent.isDirectory() && scanned < MAX_SEARCHED_ENTRIES) {
-        const next = {
-          absolutePath: path.join(current.absolutePath, dirent.name),
-          relativePath,
-        };
-        if (searchPriority(dirent.name) === 0) queue.push(next);
-        else deferred.push(next);
-      }
+    } catch (error) {
+      throwIfAborted(signal);
+      if (error instanceof Error && error.name === "AbortError") throw error;
     }
+
+    if (scanLimitReached) break;
   }
 
   matches.sort((first, second) =>
@@ -151,8 +206,23 @@ async function searchFiles(
   );
   return {
     matches,
-    truncated: queue.length > 0 || deferred.length > 0 || scanned >= MAX_SEARCHED_ENTRIES,
+    truncated:
+      scanLimitReached || queueIndex < queue.length || deferredIndex < deferred.length,
   };
+}
+
+async function waitForWorkspaceChange(
+  rootPath: string,
+  context: Parameters<
+    (typeof experimental_defineHostEntry) extends (...args: never[]) => never
+      ? never
+      : never
+  >[0] extends never
+    ? never
+    : never,
+): Promise<{ kind: WatchKind }> {
+  void context;
+  return { kind: "timeout" };
 }
 
 async function readTextFile(rootPath: string, relativePath: string) {
@@ -196,10 +266,48 @@ export default experimental_defineHostEntry({
   contract: filetreeHostContract,
   handlers: {
     async listDirectory({ rootPath, relativePath }) {
-      return { entries: await listDirectory(rootPath, relativePath) };
+      return listDirectory(rootPath, relativePath);
     },
     async search({ rootPath, query, limit }, context) {
       return searchFiles(rootPath, query, limit, context.signal);
+    },
+    async watchWorkspace({ rootPath }, context) {
+      let resolveResult!: (kind: WatchKind) => void;
+      const result = new Promise<WatchKind>((resolve) => {
+        resolveResult = resolve;
+      });
+      const subscription = await context.experimental_watch(
+        {
+          rootPath: path.resolve(rootPath),
+          ignoredPaths: [".git"],
+          debounceMs: 125,
+          maxWaitMs: 750,
+        },
+        (event) => {
+          switch (event.kind) {
+            case "changed":
+              resolveResult("changed");
+              break;
+            case "rescan-required":
+              resolveResult("rescan-required");
+              break;
+            case "watch-error":
+              resolveResult("watch-error");
+              break;
+          }
+        },
+      );
+      const timeout = setTimeout(() => resolveResult("timeout"), WATCH_TIMEOUT_MS);
+      timeout.unref?.();
+      const abort = () => resolveResult("timeout");
+      context.signal.addEventListener("abort", abort, { once: true });
+      try {
+        return { kind: await result };
+      } finally {
+        clearTimeout(timeout);
+        context.signal.removeEventListener("abort", abort);
+        await subscription.dispose();
+      }
     },
     async readFile({ rootPath, relativePath }) {
       return readTextFile(rootPath, relativePath);
