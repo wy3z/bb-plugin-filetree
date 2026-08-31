@@ -69,9 +69,7 @@ function readString(key: string): string | null {
 function writeStorage(key: string, value: string): void {
   try {
     window.localStorage.setItem(key, value);
-  } catch {
-    // Client-local convenience only; the explorer still works without storage.
-  }
+  } catch {}
 }
 
 function selectedPathKey(threadId: string): string {
@@ -425,7 +423,7 @@ function FileTreePanel({ threadId }: PluginThreadPanelProps) {
               overflow="scroll"
               className="bb-ft-source-code"
             />
-          ) : previewState.status === "ready" ? (
+          ) : previewState.status === "ready" && previewState.preview.kind === "unsupported" ? (
             <EmptyState>{previewState.preview.reason}</EmptyState>
           ) : (
             <EmptyState>Select a file from the tree.</EmptyState>
