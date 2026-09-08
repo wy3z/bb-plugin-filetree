@@ -196,11 +196,7 @@ static int make_pipe(int fds[2]) {
 }
 
 static int add_fchdir(posix_spawn_file_actions_t *actions, int dirfd) {
-#ifdef __APPLE__
   return posix_spawn_file_actions_addfchdir_np(actions, dirfd);
-#else
-  return posix_spawn_file_actions_addfchdir(actions, dirfd);
-#endif
 }
 
 static napi_value Open(napi_env env, napi_callback_info info) {
