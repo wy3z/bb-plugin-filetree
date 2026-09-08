@@ -1,4 +1,3 @@
-import { sharedWorkerProjects } from "./vitest.shared.js";
 export default {
   resolve: {
     alias: {
@@ -10,11 +9,7 @@ export default {
   },
   test: {
     silent: "passed-only",
-    projects: sharedWorkerProjects({
-      name: "bb-plugin-files",
-      pkgDir: import.meta.dirname,
-      include: ["**/*.test.ts", "**/*.test.tsx"],
-      exclude: ["node_modules/**", "dist/**", "generated/**"],
-    }),
+    include: ["**/*.test.ts", "**/*.test.tsx"],
+    exclude: ["node_modules/**", "dist/**", "generated/**"],
   },
 };
