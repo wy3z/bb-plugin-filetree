@@ -5,10 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useBbNavigate, type CodeOverflowMode } from "@get-bb/plugin-sdk/app";
 import { NATIVE_FILE_TEXT_PREVIEW_MAX_BYTES } from "../../contracts/model";
 import type { NativeFilesData } from "../native-files-data";
-import type {
-  NativeFilesRoot,
-  NativeFilesSelection,
-} from "../native-files-ui-types";
+import type { NativeFilesSelection } from "../native-files-ui-types";
 import { DocxPreview } from "./docx-preview";
 import {
   CopyIcon,
