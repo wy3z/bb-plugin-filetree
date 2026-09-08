@@ -26,7 +26,7 @@ To develop or rebuild it, use Node.js 22 or newer, pnpm, and the stable BB CLI o
 git clone https://github.com/wy3z/bb-plugin-filetree.git
 cd bb-plugin-filetree
 pnpm install --frozen-lockfile
-pnpm exec turbo run typecheck test smoke
+pnpm verify
 bb plugin install .
 ```
 
@@ -43,7 +43,7 @@ pnpm pack
 bb plugin install ./bb-plugin-files-0.2.0.tgz
 ```
 
-This standalone repository includes the generated worker and native-asset modules needed by BB's Git installer, which skips generation scripts. `pnpm exec turbo run build` regenerates them from source. Commit updated generated assets with source changes before publishing. For multi-platform packages, supply the corresponding `prebuilds/linux-x64.node`, `linux-arm64.node`, `darwin-x64.node`, or `darwin-arm64.node` files before generation.
+This standalone repository includes the generated worker and native-asset modules needed by BB's Git installer, which skips generation scripts. `pnpm build` regenerates them from source. Commit updated generated assets with source changes before publishing. For multi-platform packages, supply the corresponding `prebuilds/linux-x64.node`, `linux-arm64.node`, `darwin-x64.node`, or `darwin-arm64.node` files before generation.
 
 ## CLI
 
@@ -71,7 +71,7 @@ The panel renews native watches every 30 seconds. Watches expire 75 seconds afte
 ## Verification
 
 ```sh
-pnpm exec turbo run typecheck test smoke
+pnpm verify
 ```
 
 Tests cover confinement races, Git helper isolation, stale-root rejection, bounded SDK reads and immutable downloads, previews, cancellation, persistent tree state, and omission of the removed actions. The smoke task loads the built host artifact from a fresh directory, exercises its embedded native addon, rejects a symlink escape, and exercises directory listing and search. Server tests cover immutable 25 MiB downloads, integrity failures, cancellation and capacity recovery.
