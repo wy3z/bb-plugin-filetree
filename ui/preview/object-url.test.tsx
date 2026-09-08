@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ImagePreview } from "./image-preview.js";
+import { ImagePreview } from "./simple-previews.js";
 afterEach(() => vi.unstubAllGlobals());
 describe("preview object URL lifecycle", () => {
   it("revokes replaced and unmounted image resources", () => {
