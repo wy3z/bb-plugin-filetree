@@ -6,14 +6,6 @@ import {
   type NativeFileRoot,
   type NativeFileRootReference,
 } from "../contracts/api.js";
-export interface AuthorizedNativeFileRoot {
-  hostId: string;
-  projectId: string;
-  reference: NativeFileRootReference;
-  rootId: string;
-  rootPath: string;
-  publicRoot: NativeFileRoot;
-}
 function normalizedAbsolutePath(value: string): string | null {
   if (!path.posix.isAbsolute(value) || value.includes("\0")) return null;
   return path.posix.normalize(value);
@@ -140,19 +132,11 @@ export async function resolveAuthorizedNativeFileRoot(
   sdk: BbPluginApi["sdk"],
   threadId: string,
   rootId: string,
-): Promise<AuthorizedNativeFileRoot> {
+): Promise<NativeFileRoot> {
   const result = await listAuthorizedNativeFileRoots(sdk, threadId);
   if (result.kind === "unavailable")
     throw new Error(`Files unavailable: ${result.reason}`);
-  const publicRoot = result.roots.find((root) => root.rootId === rootId);
-  if (!publicRoot)
-    throw new Error("Files root is stale or no longer authorized");
-  return {
-    hostId: publicRoot.hostId,
-    projectId: publicRoot.projectId,
-    reference: publicRoot.reference,
-    rootId: publicRoot.rootId,
-    rootPath: publicRoot.rootPath,
-    publicRoot,
-  };
+  const root = result.roots.find((candidate) => candidate.rootId === rootId);
+  if (!root) throw new Error("Files root is stale or no longer authorized");
+  return root;
 }
