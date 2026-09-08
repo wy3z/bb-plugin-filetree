@@ -156,6 +156,7 @@
   max-width: 52rem;
   margin: 0 auto;
   padding: 1.25rem;
+  overflow-wrap: anywhere;
 }
 
 .filetree-preview-warnings {
@@ -238,8 +239,4 @@
   height: auto;
   max-height: calc(100% - 3rem);
   object-fit: contain;
-}
-
-.filetree-preview-markdown {
-  overflow-wrap: anywhere;
 }

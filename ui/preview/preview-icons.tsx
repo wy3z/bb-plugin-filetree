@@ -1,7 +1,6 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Copy01Icon,
-  Download01Icon,
   FileEmpty02Icon,
   LinkSquare02Icon,
   Loading03Icon,
@@ -63,17 +62,6 @@ export function CopyIcon(props: PreviewIconProps) {
     <HugeiconsIcon
       strokeWidth={2.25}
       icon={Copy01Icon}
-      className={props.className}
-      aria-hidden="true"
-    />
-  );
-}
-
-export function SaveCopyIcon(props: PreviewIconProps) {
-  return (
-    <HugeiconsIcon
-      strokeWidth={2.25}
-      icon={Download01Icon}
       className={props.className}
       aria-hidden="true"
     />

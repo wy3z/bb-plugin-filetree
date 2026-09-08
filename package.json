@@ -81,10 +81,11 @@
   ],
   "scripts": {
     "generate": "node scripts/generate.mjs",
-    "build": "bb plugin build",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --config vitest.config.ts",
-    "smoke": "node scripts/smoke-artifact.mjs"
+    "build": "pnpm generate && bb plugin build",
+    "typecheck": "pnpm generate && tsc --noEmit -p tsconfig.json",
+    "test": "pnpm generate && vitest run --config vitest.config.ts",
+    "smoke": "pnpm build && node scripts/smoke-artifact.mjs",
+    "verify": "pnpm generate && tsc --noEmit -p tsconfig.json && vitest run --config vitest.config.ts && bb plugin build && node scripts/smoke-artifact.mjs"
   },
   "license": "MIT",
   "packageManager": "pnpm@11.3.0",

@@ -59,7 +59,7 @@ export class FilesService {
       input.threadId,
       input.rootId,
     );
-    const value = await run(root.publicRoot);
+    const value = await run(root);
     await resolveAuthorizedNativeFileRoot(
       this.sdk,
       input.threadId,
