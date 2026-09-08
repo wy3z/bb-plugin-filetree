@@ -1,4 +1,3 @@
-import "./ui/registry.css";
 import {
   definePluginApp,
   type PluginThreadPanelProps,
