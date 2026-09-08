@@ -1,51 +1,97 @@
 {
-  "name": "bb-plugin-filetree",
-  "version": "0.1.0",
+  "name": "bb-plugin-files",
+  "version": "0.2.0",
   "type": "module",
-  "description": "A read-only file tree and source viewer for BB thread workspaces.",
+  "engines": {
+    "bb": ">=0.42",
+    "bbPluginSdk": ">=0.4.47"
+  },
+  "bb": {
+    "name": "Files",
+    "description": "Browse thread workspaces and project sources with search, Git status, and document previews.",
+    "branding": {
+      "icon": "FolderOpen"
+    },
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "host": "./host.ts",
+    "skills": [
+      "skills"
+    ]
+  },
+  "dependencies": {
+    "@hugeicons/core-free-icons": "^4.1.3",
+    "@hugeicons/react": "^1.1.6",
+    "@radix-ui/react-slot": "^1.3.0",
+    "@xmldom/xmldom": "0.9.12",
+    "dompurify": "3.4.14",
+    "mammoth": "1.12.2",
+    "mime-types": "^3.0.2",
+    "pptx-viewer": "0.2.2",
+    "react-resizable-panels": "^2.1.7",
+    "read-excel-file": "9.3.10",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "0.4.47",
+    "@radix-ui/react-context-menu": "^2.3.3",
+    "@radix-ui/react-dropdown-menu": "^2.1.19",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "@testing-library/react": "^16.3.2",
+    "@types/mime-types": "^3.0.1",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "esbuild": "^0.25.0",
+    "jsdom": "^29.0.1",
+    "node-gyp": "^11.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sonner": "^1.7.4",
+    "tailwind-merge": "^3.4.0",
+    "typescript": "6.0.2",
+    "vitest": "^4.1.1",
+    "turbo": "^2.9.3",
+    "@testing-library/dom": "^10.4.1",
+    "better-sqlite3": "^12.10.0",
+    "cron-parser": "^5.5.0",
+    "hono": "^4.11.9"
+  },
+  "files": [
+    "dist",
+    "generated",
+    "server.ts",
+    "host.ts",
+    "app.tsx",
+    "cli.ts",
+    "backend",
+    "contracts",
+    "host",
+    "ui",
+    "vendor",
+    "assets.d.ts",
+    "skills",
+    "README.md",
+    "PLUGIN_OVERVIEW.md",
+    "LICENSE",
+    "!**/*.test.*",
+    "!host/native/build"
+  ],
+  "scripts": {
+    "generate": "node scripts/generate.mjs",
+    "build": "bb plugin build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --config vitest.config.ts",
+    "smoke": "node scripts/smoke-artifact.mjs"
+  },
   "license": "MIT",
+  "packageManager": "pnpm@11.3.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wy3z/bb-plugin-filetree.git"
   },
   "homepage": "https://github.com/wy3z/bb-plugin-filetree#readme",
-  "engines": {
-    "bb": ">=0.40.0",
-    "bbPluginSdk": ">=0.4.21"
-  },
-  "bb": {
-    "name": "File Tree",
-    "description": "Browse and preview files from the current thread workspace.",
-    "branding": {
-      "icon": "FolderOpen"
-    },
-    "app": "./app.tsx",
-    "server": "./server.ts",
-    "host": "./host.ts"
-  },
-  "scripts": {
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "zod": "4.3.6"
-  },
-  "devDependencies": {
-    "@get-bb/plugin-sdk": "0.4.21",
-    "@testing-library/dom": "10.4.1",
-    "@testing-library/react": "16.3.2",
-    "@types/node": "22.18.0",
-    "@types/react": "19.1.12",
-    "@types/react-dom": "19.1.9",
-    "jsdom": "29.0.1",
-    "react": "19.1.1",
-    "react-dom": "19.1.1",
-    "typescript": "6.0.2",
-    "vitest": "4.1.1"
-  },
-  "keywords": [
-    "bb-plugin",
-    "file-tree",
-    "file-explorer"
-  ]
+  "description": "Browse thread workspaces and project sources with search, Git status, and document previews."
 }

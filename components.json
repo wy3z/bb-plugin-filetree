@@ -1,0 +1,20 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "ui/registry.css",
+    "baseColor": "neutral",
+    "cssVariables": true
+  },
+  "aliases": {
+    "components": "@/vendor/components",
+    "ui": "@/vendor/components/ui",
+    "utils": "@/vendor/lib/utils",
+    "hooks": "@/vendor/components/ui/hooks"
+  },
+  "registries": {
+    "@bb": "https://raw.githubusercontent.com/get-bb/bb/desktop-v0.42.1/packages/plugin-registry/r/{name}.json"
+  }
+}

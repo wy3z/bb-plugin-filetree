@@ -1,0 +1,245 @@
+.filetree-preview-pane {
+  container-type: inline-size;
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+  color: var(--foreground);
+  background: var(--background);
+}
+
+.filetree-preview-header {
+  display: flex;
+  min-height: 2.25rem;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.375rem;
+  padding: 0 0.5rem 0 1rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklch, var(--ink) 2.5%, var(--canvas));
+}
+
+.filetree-preview-path {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.filetree-preview-actions,
+.filetree-preview-slide-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.filetree-preview-actions {
+  flex: 0 0 auto;
+  gap: 0.375rem;
+}
+
+.filetree-preview-file-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: 0 0 auto;
+  color: var(--subtle-foreground, var(--muted-foreground));
+}
+
+.filetree-preview-slide-controls button,
+.filetree-preview-empty button {
+  min-height: 2rem;
+  padding: 0.25rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  color: inherit;
+  background: color-mix(in oklch, var(--ink) 5%, var(--canvas));
+  cursor: pointer;
+}
+
+.filetree-preview-slide-controls button:focus-visible,
+.filetree-preview-empty button:focus-visible,
+.filetree-preview-presentation:focus-visible,
+.filetree-preview-table-scroll:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.filetree-preview-slide-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.filetree-preview-content,
+.filetree-preview-document,
+.filetree-preview-source-code {
+  min-height: 0;
+  flex: 1;
+}
+
+.filetree-preview-content {
+  display: flex;
+  overflow: auto;
+  flex-direction: column;
+}
+
+.filetree-preview-empty {
+  margin: auto;
+  max-width: 32rem;
+  padding: 2rem;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+.filetree-preview-error {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  color: var(--destructive);
+  background: color-mix(in oklab, var(--destructive) 10%, transparent);
+}
+
+.filetree-preview-frame {
+  display: block;
+  width: 100%;
+  min-height: 32rem;
+  height: 100%;
+  border: 0;
+  background: var(--canvas);
+}
+
+.filetree-preview-media {
+  display: grid;
+  min-height: 100%;
+  padding: 1rem;
+  place-items: center;
+  background-image:
+    linear-gradient(
+      45deg,
+      color-mix(in oklch, var(--ink) 7%, var(--canvas)) 25%,
+      transparent 25%
+    ),
+    linear-gradient(
+      -45deg,
+      color-mix(in oklch, var(--ink) 7%, var(--canvas)) 25%,
+      transparent 25%
+    ),
+    linear-gradient(
+      45deg,
+      transparent 75%,
+      color-mix(in oklch, var(--ink) 7%, var(--canvas)) 75%
+    ),
+    linear-gradient(
+      -45deg,
+      transparent 75%,
+      color-mix(in oklch, var(--ink) 7%, var(--canvas)) 75%
+    );
+  background-position:
+    0 0,
+    0 0.5rem,
+    0.5rem -0.5rem,
+    -0.5rem 0;
+  background-size: 1rem 1rem;
+}
+
+.filetree-preview-media img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.filetree-preview-markdown {
+  width: 100%;
+  min-width: 0;
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 1.25rem;
+}
+
+.filetree-preview-warnings {
+  margin: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+}
+
+.filetree-preview-spreadsheet {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+}
+
+.filetree-preview-spreadsheet label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filetree-preview-spreadsheet select {
+  min-height: 2rem;
+  max-width: 20rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  color: inherit;
+  background: var(--canvas);
+}
+
+.filetree-preview-table-scroll {
+  min-height: 0;
+  height: min(60vh, 32rem);
+  max-height: min(60vh, 32rem);
+  overflow: auto;
+  flex: 1;
+  border: 1px solid var(--border);
+}
+
+.filetree-preview-table-scroll table {
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
+}
+
+.filetree-preview-table-scroll td {
+  padding: 0;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.filetree-preview-cell {
+  overflow: hidden;
+  padding: 0 0.5rem;
+  text-overflow: ellipsis;
+}
+
+.filetree-preview-table-scroll .filetree-preview-table-spacer {
+  border: 0;
+}
+
+.filetree-preview-presentation {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.filetree-preview-presentation canvas {
+  width: min(100%, 80rem);
+  height: auto;
+  max-height: calc(100% - 3rem);
+  object-fit: contain;
+}
+
+.filetree-preview-markdown {
+  overflow-wrap: anywhere;
+}

@@ -1,4 +1,6 @@
 node_modules/
 dist/
-*.tsbuildinfo
-.DS_Store
+host/native/build/
+prebuilds/
+.turbo/
+*.tgz
