@@ -53,7 +53,6 @@
     "tailwind-merge": "^3.4.0",
     "typescript": "6.0.2",
     "vitest": "^4.1.1",
-    "turbo": "^2.9.3",
     "@testing-library/dom": "^10.4.1",
     "better-sqlite3": "^12.10.0",
     "cron-parser": "^5.5.0",
@@ -81,10 +80,11 @@
   ],
   "scripts": {
     "generate": "node scripts/generate.mjs",
-    "build": "bb plugin build",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --config vitest.config.ts",
-    "smoke": "node scripts/smoke-artifact.mjs"
+    "build": "pnpm generate && bb plugin build",
+    "typecheck": "pnpm generate && tsc --noEmit -p tsconfig.json",
+    "test": "pnpm generate && vitest run --config vitest.config.ts",
+    "smoke": "node scripts/smoke-artifact.mjs",
+    "verify": "pnpm generate && tsc --noEmit -p tsconfig.json && vitest run --config vitest.config.ts && bb plugin build && node scripts/smoke-artifact.mjs"
   },
   "license": "MIT",
   "packageManager": "pnpm@11.3.0",
