@@ -2,6 +2,8 @@
 
 A Codex-style file pane for BB.
 
+![Files pane with a source preview and searchable file tree](docs/screenshots/files.png)
+
 - Browse workspaces and project sources with search, Git status and live updates.
 - Preview code, Markdown, images, PDF, HTML, Word, Excel and PowerPoint.
 - Wrap text, copy paths or contents, download files and open your editor.
