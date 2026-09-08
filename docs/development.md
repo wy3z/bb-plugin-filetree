@@ -10,7 +10,7 @@ pnpm verify
 bb plugin install .
 ```
 
-The repository now contains **Files** (`bb-plugin-files`, plugin ID `files`), replacing the original File Tree implementation. If `filetree` is already installed, disable it before installing Files to avoid duplicate viewers. The old plugin is a separate identity and is not migrated by `bb plugin update filetree`.
+The repository now contains **FileTree** (`bb-plugin-files`, plugin ID `files`), replacing the original File Tree implementation. If `filetree` is already installed, disable it before installing FileTree to avoid duplicate viewers. The old plugin is a separate identity and is not migrated by `bb plugin update filetree`.
 
 The plugin pins public SDK 0.4.47 and requires BB 0.42 or newer. It does not change BB's core APIs, daemon protocol, or application dependencies. A C compiler, Python and Node headers are required to build the descriptor-based native addon. The generated addon is embedded in the host artifact; the enrolled host does not need a compiler.
 

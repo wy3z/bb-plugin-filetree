@@ -13,14 +13,14 @@ function FilesPanel({ threadId }: PluginThreadPanelProps) {
 export default definePluginApp((app) => {
   app.slots.threadPanelAction({
     id: "files",
-    title: "Files",
+    title: "FileTree",
     icon: "FolderOpen",
     layout: "flush",
     component: FilesPanel,
   });
   app.slots.fileOpener({
     id: "files",
-    title: "Files",
+    title: "FileTree",
     extensions: FILE_PREVIEW_EXTENSIONS,
     component: FilesOpener,
   });
