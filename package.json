@@ -1,13 +1,13 @@
 {
   "name": "bb-plugin-files",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "engines": {
     "bb": ">=0.42",
     "bbPluginSdk": ">=0.4.47"
   },
   "bb": {
-    "name": "Files",
+    "name": "FileTree",
     "description": "Browse thread workspaces and project sources with search, Git status, and document previews.",
     "branding": {
       "icon": "FolderOpen"

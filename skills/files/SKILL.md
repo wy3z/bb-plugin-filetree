@@ -1,9 +1,9 @@
 ---
 name: files
-description: Browse a thread's workspace or project sources, search paths, inspect Git status, read text, or prepare a file download with the Files plugin.
+description: Browse a thread's workspace or project sources, search paths, inspect Git status, read text, or prepare a file download with the FileTree plugin.
 ---
 
-# Files
+# FileTree
 
 Use `bb files roots` first when selecting a project source. Commands default to the current thread and its active workspace; pass `--thread ID` or `--root ID` explicitly to choose another scope.
 
