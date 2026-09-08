@@ -13,6 +13,7 @@
 .filetree-explorer-controls {
   display: flex;
   min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
@@ -50,10 +51,6 @@
 .filetree-small-button svg {
   width: 16px;
   height: 16px;
-}
-
-.filetree-explorer-controls {
-  flex-wrap: wrap;
 }
 
 .filetree-explorer-controls input[type="search"] {
