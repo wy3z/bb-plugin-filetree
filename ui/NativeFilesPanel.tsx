@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 import {
   ResizablePanelGroup,
@@ -6,13 +6,9 @@ import {
   ResizableHandle,
 } from "../vendor/components/ui/resizable";
 import { ToolbarButton } from "./toolbar-button";
-import { useEffect, useRef, useState } from "react";
 import { ResponsiveDrawerShell } from "../vendor/components/ui/responsive-overlay";
 import type { NativeFilesData } from "./native-files-data";
-import type {
-  NativeFilesRoot,
-  NativeFilesSelection,
-} from "./native-files-ui-types";
+import type { NativeFilesSelection } from "./native-files-ui-types";
 import { ExplorerPane } from "./explorer/ExplorerPane";
 import { PreviewPane } from "./preview/PreviewPane";
 import "./layout.css";

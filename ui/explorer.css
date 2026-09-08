@@ -13,13 +13,13 @@
 .filetree-explorer-controls {
   display: flex;
   min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
   border-bottom: 1px solid var(--border);
 }
 
-.filetree-small-button,
 .filetree-explorer-empty button {
   min-height: 28px;
   border: 1px solid
@@ -37,23 +37,6 @@
     var(--background, Canvas)
   );
   font: inherit;
-}
-
-.filetree-small-button {
-  display: inline-grid;
-  width: 28px;
-  min-width: 28px;
-  padding: 0;
-  place-items: center;
-}
-
-.filetree-small-button svg {
-  width: 16px;
-  height: 16px;
-}
-
-.filetree-explorer-controls {
-  flex-wrap: wrap;
 }
 
 .filetree-explorer-controls input[type="search"] {
@@ -128,9 +111,6 @@
 }
 
 .filetree-tree-row:focus-visible,
-.filetree-small-button:focus-visible,
-.filetree-mode-toggle button:focus-visible,
-.filetree-git-controls button:focus-visible,
 .filetree-context-drawer button:focus-visible {
   outline: 2px solid var(--ring, Highlight);
   outline-offset: -2px;
@@ -303,14 +283,4 @@ button.filetree-tree-message {
     )
   );
   text-align: center;
-}
-
-.filetree-sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  clip-path: inset(50%);
 }
