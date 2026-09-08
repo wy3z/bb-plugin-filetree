@@ -10,10 +10,6 @@ import type {
   NativeFilesSelection,
 } from "../native-files-ui-types";
 import { DocxPreview } from "./docx-preview";
-import { HtmlPreview } from "./html-preview";
-import { ImagePreview } from "./image-preview";
-import { MarkdownPreview } from "./markdown-preview";
-import { PdfPreview } from "./pdf-preview";
 import {
   CopyIcon,
   RefreshIcon,
@@ -24,6 +20,12 @@ import {
 } from "./preview-icons";
 import { PptxPreview } from "./pptx-preview";
 import { routePreview, type PreviewRoute } from "./preview-router";
+import {
+  HtmlPreview,
+  ImagePreview,
+  MarkdownPreview,
+  PdfPreview,
+} from "./simple-previews";
 import { SourcePreview } from "./source-preview";
 import {
   decodeUtf8,
@@ -236,10 +238,7 @@ export function PreviewPane(props: {
         title="Copy file path"
         onClick={() => void copyText(absolutePath, "path")}
       >
-        <span
-          dir="rtl"
-          className="block w-min max-w-full truncate"
-        >{`\u200e${selection.path}`}</span>
+        <span dir="rtl" className="block w-min max-w-full truncate">{`\u200e${selection.path}`}</span>
       </button>
       <div
         className="filetree-preview-actions"
@@ -294,9 +293,7 @@ export function PreviewPane(props: {
   );
   return (
     <section className="filetree-preview-pane" aria-label="File preview">
-      {props.toolbarTarget
-        ? createPortal(toolbar, props.toolbarTarget)
-        : toolbar}
+      {props.toolbarTarget ? createPortal(toolbar, props.toolbarTarget) : toolbar}
       {actionError === null ? null : (
         <p className="filetree-preview-error" role="alert">
           {actionError}
