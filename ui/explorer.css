@@ -1,0 +1,316 @@
+.filetree-explorer-pane {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  color: var(--foreground, CanvasText);
+  background: var(--background, Canvas);
+}
+
+.filetree-explorer-controls {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.filetree-small-button,
+.filetree-explorer-empty button {
+  min-height: 28px;
+  border: 1px solid
+    color-mix(
+      in oklch,
+      var(--foreground, CanvasText) 16%,
+      var(--background, Canvas)
+    );
+  border-radius: 6px;
+  padding: 0 8px;
+  color: inherit;
+  background: color-mix(
+    in oklch,
+    var(--foreground, CanvasText) 4%,
+    var(--background, Canvas)
+  );
+  font: inherit;
+}
+
+.filetree-small-button {
+  display: inline-grid;
+  width: 28px;
+  min-width: 28px;
+  padding: 0;
+  place-items: center;
+}
+
+.filetree-small-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.filetree-explorer-controls {
+  flex-wrap: wrap;
+}
+
+.filetree-explorer-controls input[type="search"] {
+  flex: 1 1 140px;
+}
+
+.filetree-tree-shell {
+  position: relative;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.filetree-tree-scroll {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  padding: 4px 0 18px;
+}
+
+.filetree-virtual-spacer {
+  position: relative;
+  min-width: max-content;
+}
+
+.filetree-virtual-window {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  min-width: max-content;
+  will-change: transform;
+}
+
+.filetree-tree-row-wrap {
+  min-width: max-content;
+}
+
+.filetree-tree-row {
+  display: flex;
+  width: 100%;
+  min-width: 100%;
+  height: 28px;
+  cursor: default;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  padding-block: 0;
+  padding-right: 8px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+
+.filetree-tree-row:hover,
+.filetree-tree-row:focus-visible {
+  background: color-mix(
+    in oklch,
+    var(--foreground, CanvasText) 7%,
+    var(--background, Canvas)
+  );
+}
+
+.filetree-tree-row.is-selected {
+  background: color-mix(
+    in oklch,
+    var(--primary, CanvasText) 16%,
+    var(--background, Canvas)
+  );
+}
+
+.filetree-tree-row:focus-visible,
+.filetree-small-button:focus-visible,
+.filetree-mode-toggle button:focus-visible,
+.filetree-git-controls button:focus-visible,
+.filetree-context-drawer button:focus-visible {
+  outline: 2px solid var(--ring, Highlight);
+  outline-offset: -2px;
+}
+
+.filetree-row-label {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filetree-git-status,
+.filetree-directory-change-count {
+  display: inline-grid;
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  place-items: center;
+  color: var(--primary, CanvasText);
+}
+
+.filetree-git-status svg {
+  width: 14px;
+  height: 14px;
+}
+
+.filetree-directory-change-count {
+  border-radius: 999px;
+  background: color-mix(
+    in oklch,
+    var(--primary, CanvasText) 12%,
+    var(--background, Canvas)
+  );
+  font-size: 0.65rem;
+}
+
+.filetree-tree-message,
+.filetree-tree-limit,
+.filetree-tree-empty,
+.filetree-tree-scroll > p[role="status"] {
+  margin: 0;
+  padding: 6px 10px;
+  color: var(
+    --muted-foreground,
+    color-mix(
+      in oklch,
+      var(--foreground, CanvasText) 62%,
+      var(--background, Canvas)
+    )
+  );
+  font-size: 0.75rem;
+}
+
+button.filetree-tree-message {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.filetree-tree-message.is-error,
+.filetree-tree-empty[role="alert"] {
+  color: var(--destructive, CanvasText);
+}
+
+.filetree-sticky-ancestors {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: 0;
+  left: 0;
+  pointer-events: none;
+  background: var(--background, Canvas);
+  box-shadow: 0 1px 0
+    color-mix(
+      in oklch,
+      var(--foreground, CanvasText) 10%,
+      var(--background, Canvas)
+    );
+}
+
+.filetree-sticky-row {
+  display: flex;
+  height: 28px;
+  align-items: center;
+  padding: 0 8px;
+  overflow: hidden;
+  font-size: 0.8125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filetree-notice {
+  position: absolute;
+  z-index: 5;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  max-width: calc(100% - 16px);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid
+    color-mix(
+      in oklch,
+      var(--foreground, CanvasText) 16%,
+      var(--background, Canvas)
+    );
+  border-radius: 7px;
+  padding: 6px 8px;
+  background: var(--background, Canvas);
+  box-shadow: 0 8px 24px
+    color-mix(in oklab, var(--foreground, CanvasText) 18%, transparent);
+  font-size: 0.75rem;
+}
+
+.filetree-notice button {
+  border: 0;
+  color: inherit;
+  background: transparent;
+}
+
+.filetree-context-menu-items {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  padding: 4px;
+}
+
+.filetree-context-drawer button {
+  width: 100%;
+  border: 0;
+  border-radius: 4px;
+  padding: 6px 8px;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+.filetree-context-drawer button:hover {
+  background: color-mix(
+    in oklch,
+    var(--foreground, CanvasText) 7%,
+    var(--background, Canvas)
+  );
+}
+
+.filetree-context-drawer {
+  max-height: min(72vh, 420px);
+  overflow-y: auto;
+  color: var(--foreground, CanvasText);
+  background: var(--background, Canvas);
+}
+
+.filetree-explorer-empty {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: var(
+    --muted-foreground,
+    color-mix(
+      in oklch,
+      var(--foreground, CanvasText) 62%,
+      var(--background, Canvas)
+    )
+  );
+  text-align: center;
+}
+
+.filetree-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}

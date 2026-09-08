@@ -1,0 +1,166 @@
+.filetree-entry-chevron-slot {
+  display: inline-flex;
+  width: 11px;
+  height: 16px;
+  flex: 0 0 11px;
+  align-items: center;
+  justify-content: center;
+  color: var(
+    --muted-foreground,
+    color-mix(
+      in oklch,
+      var(--foreground, CanvasText) 62%,
+      var(--background, Canvas)
+    )
+  );
+}
+
+.filetree-entry-chevron {
+  width: 11px;
+  height: 11px;
+  transition: transform 90ms ease;
+}
+
+.filetree-entry-chevron.is-expanded {
+  transform: rotate(90deg);
+}
+
+.filetree-entry-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+
+.filetree-folder-icon {
+  color: color-mix(
+    in oklch,
+    var(--foreground, CanvasText) 62%,
+    var(--background, Canvas)
+  );
+}
+
+.filetree-folder-icon.is-open {
+  color: color-mix(
+    in oklch,
+    var(--foreground, CanvasText) 72%,
+    var(--background, Canvas)
+  );
+}
+
+.filetree-file-icon.is-default {
+  color: var(
+    --muted-foreground,
+    color-mix(
+      in oklch,
+      var(--foreground, CanvasText) 58%,
+      var(--background, Canvas)
+    )
+  );
+}
+
+.filetree-file-icon.is-source {
+  color: color-mix(
+    in oklch,
+    var(--primary, var(--foreground, CanvasText)) 78%,
+    var(--background, Canvas)
+  );
+}
+
+.filetree-file-icon.is-config {
+  color: color-mix(
+    in oklch,
+    var(--warning, var(--foreground, CanvasText)) 76%,
+    var(--background, Canvas)
+  );
+}
+
+.filetree-file-icon.is-docs {
+  color: color-mix(
+    in oklch,
+    var(--success, var(--foreground, CanvasText)) 72%,
+    var(--background, Canvas)
+  );
+}
+
+.filetree-file-icon.is-image {
+  color: color-mix(
+    in oklch,
+    var(--accent-foreground, var(--foreground, CanvasText)) 76%,
+    var(--background, Canvas)
+  );
+}
+
+.filetree-file-icon.is-office {
+  color: color-mix(
+    in oklch,
+    var(--destructive, var(--foreground, CanvasText)) 68%,
+    var(--background, Canvas)
+  );
+}
+
+.filetree-file-icon.is-archive {
+  color: color-mix(
+    in oklch,
+    var(--secondary-foreground, var(--foreground, CanvasText)) 72%,
+    var(--background, Canvas)
+  );
+}
+
+.filetree-file-icon.is-media {
+  color: color-mix(
+    in oklch,
+    var(--ring, var(--foreground, CanvasText)) 72%,
+    var(--background, Canvas)
+  );
+}
+
+.filetree-git-status-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+
+.filetree-git-status-icon.is-added {
+  color: var(
+    --success,
+    color-mix(
+      in oklch,
+      var(--foreground, CanvasText) 72%,
+      var(--background, Canvas)
+    )
+  );
+}
+
+.filetree-git-status-icon.is-deleted,
+.filetree-git-status-icon.is-conflicted {
+  color: var(
+    --destructive,
+    color-mix(
+      in oklch,
+      var(--foreground, CanvasText) 78%,
+      var(--background, Canvas)
+    )
+  );
+}
+
+.filetree-git-status-icon.is-renamed {
+  color: var(
+    --warning,
+    color-mix(
+      in oklch,
+      var(--foreground, CanvasText) 70%,
+      var(--background, Canvas)
+    )
+  );
+}
+
+.filetree-git-status-icon.is-modified {
+  color: var(
+    --primary,
+    color-mix(
+      in oklch,
+      var(--foreground, CanvasText) 72%,
+      var(--background, Canvas)
+    )
+  );
+}

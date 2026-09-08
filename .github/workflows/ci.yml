@@ -1,22 +1,25 @@
 name: CI
-
 on:
   push:
     branches: [main]
   pull_request:
-
 permissions:
   contents: read
-
 jobs:
-  validate:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --ignore-scripts --legacy-peer-deps
-      - run: npm run typecheck
-      - run: npm test
-      - run: npx --yes --package bb-app@0.40.0 bb plugin build
+          cache: pnpm
+      - run: npm install --global bb-app@0.42.1
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec turbo run typecheck test smoke
+      - run: pnpm pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bb-plugin-files-linux-x64
+          path: bb-plugin-files-*.tgz

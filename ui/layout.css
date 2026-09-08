@@ -1,0 +1,115 @@
+.filetree-app {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--foreground, CanvasText);
+  background: var(--background, Canvas);
+  font-size: 0.8125rem;
+}
+
+.filetree-app-preview {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.filetree-app-explorer {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.filetree-compact-back {
+  display: none;
+}
+
+.filetree-app.is-compact .filetree-app-explorer,
+.filetree-app-explorer.is-compact {
+  width: 100% !important;
+  min-width: 0;
+  max-width: none;
+  flex: 1 1 auto;
+  border-left: 0;
+}
+
+.filetree-drawer-panel {
+  height: min(92dvh, 56rem);
+}
+
+.filetree-app-preview.is-drawer {
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.filetree-compact-back {
+  position: absolute;
+  z-index: 4;
+  top: 5px;
+  left: 6px;
+  min-height: 28px;
+  align-items: center;
+  border: 1px solid
+    color-mix(
+      in oklch,
+      var(--foreground, CanvasText) 16%,
+      var(--background, Canvas)
+    );
+  border-radius: 6px;
+  padding: 0 8px;
+  color: inherit;
+  background: var(--background, Canvas);
+  font: inherit;
+}
+
+.filetree-app-preview.is-drawer .filetree-compact-back {
+  display: inline-flex;
+}
+
+.filetree-app-preview.is-drawer .filetree-preview-header {
+  padding-left: 42px;
+}
+
+.filetree-app-body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.filetree-app-toolbar {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--border);
+  padding-right: 6px;
+}
+
+.filetree-app-toolbar-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.filetree-app-toolbar .filetree-preview-header {
+  border: 0;
+  background: transparent;
+}
+
+.filetree-tree-toggle {
+  flex: 0 0 auto;
+}
+
+.filetree-root-selector-target {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
