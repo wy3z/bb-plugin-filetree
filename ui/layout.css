@@ -26,10 +26,6 @@
   overflow: hidden;
 }
 
-.filetree-compact-back {
-  display: none;
-}
-
 .filetree-app.is-compact .filetree-app-explorer,
 .filetree-app-explorer.is-compact {
   width: 100% !important;
@@ -54,6 +50,7 @@
   z-index: 4;
   top: 5px;
   left: 6px;
+  display: none;
   min-height: 28px;
   align-items: center;
   border: 1px solid
