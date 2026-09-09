@@ -21,5 +21,5 @@ jobs:
       - run: pnpm pack
       - uses: actions/upload-artifact@v4
         with:
-          name: bb-plugin-files-linux-x64
-          path: bb-plugin-files-*.tgz
+          name: bb-plugin-filetree-linux-x64
+          path: bb-plugin-filetree-*.tgz

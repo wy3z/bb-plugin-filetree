@@ -14,7 +14,7 @@ export default definePluginApp((app) => {
   app.slots.threadPanelAction({
     id: "files",
     title: "FileTree",
-    icon: "FolderOpen",
+    icon: "Folder",
     layout: "flush",
     component: FilesPanel,
   });
