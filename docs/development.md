@@ -10,7 +10,7 @@ pnpm verify
 bb plugin install .
 ```
 
-The repository now contains **FileTree** (`bb-plugin-files`, plugin ID `files`), replacing the original File Tree implementation. If `filetree` is already installed, disable it before installing FileTree to avoid duplicate viewers. The old plugin is a separate identity and is not migrated by `bb plugin update filetree`.
+The repository contains **FileTree** (`bb-plugin-filetree`, plugin ID `filetree`).
 
 The plugin pins public SDK 0.4.47 and requires BB 0.42 or newer. It does not change BB's core APIs, daemon protocol, or application dependencies. A C compiler, Python and Node headers are required to build the descriptor-based native addon. The generated addon is embedded in the host artifact; the enrolled host does not need a compiler.
 
@@ -20,7 +20,7 @@ To prepare an installable package after the build:
 
 ```sh
 pnpm pack
-bb plugin install ./bb-plugin-files-0.2.0.tgz
+bb plugin install ./bb-plugin-filetree-0.2.1.tgz
 ```
 
 This standalone repository includes the generated worker and native-asset modules needed by BB's Git installer, which skips generation scripts. `pnpm build` regenerates them from source. Commit updated generated assets with source changes before publishing. For multi-platform packages, supply the corresponding `prebuilds/linux-x64.node`, `linux-arm64.node`, `darwin-x64.node`, or `darwin-arm64.node` files before generation.
