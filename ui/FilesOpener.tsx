@@ -5,6 +5,14 @@ import { useFilesData } from "./use-files-data";
 import { resolveFileOpenerTarget } from "./file-opener-target";
 import type { NativeFilesSelection } from "./native-files-ui-types";
 
+function OriginalFilePreview({ Original }: Pick<PluginFileOpenerProps, "Original">) {
+  return (
+    <div className="h-full min-h-0 overflow-auto">
+      <Original />
+    </div>
+  );
+}
+
 function ThreadFileOpener(props: PluginFileOpenerProps & { threadId: string }) {
   const data = useFilesData(props.threadId);
   const [target, setTarget] = useState<NativeFilesSelection | null | "loading">(
@@ -34,7 +42,7 @@ function ThreadFileOpener(props: PluginFileOpenerProps & { threadId: string }) {
     threadId,
   ]);
   if (target === "loading") return <div role="status">Loading file…</div>;
-  if (target === null) return <Original />;
+  if (target === null) return <OriginalFilePreview Original={Original} />;
   return (
     <NativeFilesPanel
       data={data}
@@ -46,7 +54,7 @@ function ThreadFileOpener(props: PluginFileOpenerProps & { threadId: string }) {
 
 export function FilesOpener(props: PluginFileOpenerProps) {
   if (props.source.threadId === null || props.source.kind === "thread-storage")
-    return <props.Original />;
+    return <OriginalFilePreview Original={props.Original} />;
   const key = JSON.stringify([
     props.path,
     props.source.kind,
