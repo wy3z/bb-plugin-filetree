@@ -8,7 +8,7 @@ A Codex-style file pane for BB.
 - Preview code, Markdown, images, PDF, HTML, Word, Excel and PowerPoint.
 - Wrap text, copy paths or contents, download files and open your editor.
 
-Opens supported files automatically. Or choose **+ → FileTree** in the right panel. File access is read-only.
+Opens supported files automatically. Or choose **+ → Files** in the right panel. File access is read-only.
 
 ```sh
 bb plugin install https://github.com/wy3z/bb-plugin-filetree
