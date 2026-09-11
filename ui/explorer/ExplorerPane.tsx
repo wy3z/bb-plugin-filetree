@@ -55,6 +55,7 @@ const ROW_HEIGHT = 28;
 const STATUS_ROW_HEIGHT = 30;
 const VIRTUAL_OVERSCAN = 8;
 const MENU_COMPACT_WIDTH = 240;
+const SCROLLBAR_IDLE_DELAY_MS = 600;
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "The operation failed.";
 }
@@ -103,6 +104,7 @@ function RootExplorer(props: RootExplorerProps) {
   });
   const explorerRef = useRef<HTMLElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollbarIdleTimeoutRef = useRef<number | null>(null);
   const rowRefs = useRef(new Map<string, HTMLElement>());
   const menuTriggerRef = useRef<HTMLElement | null>(null);
   const menuRestoreFocusRef = useRef(true);
@@ -137,6 +139,14 @@ function RootExplorer(props: RootExplorerProps) {
   } | null>(null);
   const compactMenu = useCompactElement(explorerRef);
   directoriesRef.current = directories;
+  useEffect(
+    () => () => {
+      if (scrollbarIdleTimeoutRef.current !== null) {
+        window.clearTimeout(scrollbarIdleTimeoutRef.current);
+      }
+    },
+    [],
+  );
   const loadDirectory = useCallback(
     async (path: string, force = false) => {
       const existing = directoriesRef.current.get(path);
@@ -725,6 +735,17 @@ function RootExplorer(props: RootExplorerProps) {
                 setScrollTop(next);
                 setViewportHeight(event.currentTarget.clientHeight || 560);
                 view.setScrollTop(next);
+                const scrollArea = event.currentTarget;
+                if (scrollArea.dataset.scrollbarScrolling !== "true") {
+                  scrollArea.dataset.scrollbarScrolling = "true";
+                }
+                if (scrollbarIdleTimeoutRef.current !== null) {
+                  window.clearTimeout(scrollbarIdleTimeoutRef.current);
+                }
+                scrollbarIdleTimeoutRef.current = window.setTimeout(() => {
+                  scrollbarIdleTimeoutRef.current = null;
+                  scrollArea.removeAttribute("data-scrollbar-scrolling");
+                }, SCROLLBAR_IDLE_DELAY_MS);
               }}
             >
               {busy && rows.length === 0 ? <p role="status">Loading…</p> : null}
