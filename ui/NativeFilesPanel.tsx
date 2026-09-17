@@ -69,6 +69,7 @@ export function NativeFilesPanel(props: {
   const [rootSelectorTarget, setRootSelectorTarget] =
     useState<HTMLDivElement | null>(null);
   const treeWidthRef = useRef(storedTreeWidth());
+  const [resizing, setResizing] = useState(false);
   const [treeCollapsed, setTreeCollapsed] = useState(false);
   const [selection, setSelection] = useState<NativeFilesSelection | null>(
     props.initialSelection ?? null,
@@ -177,6 +178,7 @@ export function NativeFilesPanel(props: {
         ) : containerWidth === null ? null : (
           <ResizablePanelGroup
             direction="horizontal"
+            className={resizing ? "is-resizing" : undefined}
             keyboardResizeBy={(RESIZE_STEP / layoutWidth) * 100}
           >
             <ResizablePanel
@@ -190,6 +192,7 @@ export function NativeFilesPanel(props: {
             <ResizableHandle
               id={dividerId}
               aria-label="Resize file tree"
+              onDragging={setResizing}
               onKeyDown={(event) => {
                 if (event.key === "Home") {
                   event.preventDefault();
@@ -225,7 +228,11 @@ export function NativeFilesPanel(props: {
                 }
               }}
             >
-              <div hidden={treeCollapsed} className="h-full">
+              <div
+                inert={treeCollapsed}
+                aria-hidden={treeCollapsed}
+                className="h-full"
+              >
                 {explorer}
               </div>
             </ResizablePanel>

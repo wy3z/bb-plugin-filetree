@@ -26,6 +26,20 @@
   overflow: hidden;
 }
 
+.filetree-app-body > [data-panel-group] > [data-panel] {
+  transition: flex-grow 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.filetree-app-body > [data-panel-group].is-resizing > [data-panel] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filetree-app-body > [data-panel-group] > [data-panel] {
+    transition: none;
+  }
+}
+
 .filetree-app.is-compact .filetree-app-explorer,
 .filetree-app-explorer.is-compact {
   width: 100% !important;
