@@ -1,5 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
+  revealScrollbarOnScroll,
+  useScrollbarIdleTimeout,
+} from "../auto-hide-scrollbar";
+import {
   parseXlsxCancellable,
   type XlsxWorkbookPreview,
   type XlsxSheetPreview,
@@ -81,6 +85,7 @@ const ROW_HEIGHT = 28;
 const OVERSCAN_ROWS = 6;
 function WorksheetTable({ sheet }: { sheet: XlsxSheetPreview }) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const scrollbarIdleTimeoutRef = useScrollbarIdleTimeout();
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(320);
   const columnCount = useMemo(
@@ -115,9 +120,10 @@ function WorksheetTable({ sheet }: { sheet: XlsxSheetPreview }) {
       className="filetree-preview-table-scroll"
       tabIndex={0}
       aria-label={`${sheet.name} worksheet data`}
-      onScroll={(event) =>
-        setScrollTop(Math.max(0, event.currentTarget.scrollTop))
-      }
+      onScroll={(event) => {
+        setScrollTop(Math.max(0, event.currentTarget.scrollTop));
+        revealScrollbarOnScroll(event, scrollbarIdleTimeoutRef);
+      }}
     >
       <table
         aria-label={sheet.name}

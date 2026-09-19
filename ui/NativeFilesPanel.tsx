@@ -57,7 +57,13 @@ export function NativeFilesPanel(props: {
   data: NativeFilesData;
   threadId: string;
   initialSelection?: NativeFilesSelection;
+  /**
+   * `opener` is mounted inside BB's file tab. Skip the compact preview drawer
+   * so mobile does not stack a second sheet on top of that tab.
+   */
+  layout?: "panel" | "opener";
 }) {
+  const layout = props.layout ?? "panel";
   const rootRef = useRef<HTMLDivElement | null>(null);
   const treePanelRef = useRef<ImperativePanelHandle | null>(null);
   const dividerId = useId();
@@ -77,6 +83,7 @@ export function NativeFilesPanel(props: {
   const [compactPreviewOpen, setCompactPreviewOpen] = useState(false);
   const [compact, setCompact] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const useCompactDrawer = compact && layout === "panel";
   useEffect(() => {
     const root = rootRef.current;
     if (root === null) return;
@@ -148,7 +155,7 @@ export function NativeFilesPanel(props: {
   return (
     <div
       ref={rootRef}
-      className={`filetree-app${selection ? " has-selection" : ""}${treeCollapsed ? " is-tree-collapsed" : ""}${compact ? " is-compact" : ""}`}
+      className={`filetree-app${selection ? " has-selection" : ""}${treeCollapsed ? " is-tree-collapsed" : ""}${compact ? " is-compact" : ""}${layout === "opener" ? " is-opener" : ""}`}
     >
       <div className="filetree-app-toolbar">
         <div className="filetree-app-toolbar-content" ref={setToolbarTarget} />
@@ -174,7 +181,11 @@ export function NativeFilesPanel(props: {
       </div>
       <div className="filetree-app-body">
         {compact ? (
-          <div className="filetree-app-explorer is-compact">{explorer}</div>
+          useCompactDrawer ? (
+            <div className="filetree-app-explorer is-compact">{explorer}</div>
+          ) : (
+            <div className="filetree-app-preview is-opener">{preview}</div>
+          )
         ) : containerWidth === null ? null : (
           <ResizablePanelGroup
             direction="horizontal"
@@ -239,7 +250,7 @@ export function NativeFilesPanel(props: {
           </ResizablePanelGroup>
         )}
       </div>
-      {compact ? (
+      {useCompactDrawer ? (
         <ResponsiveDrawerShell
           open={compactPreviewOpen && selection !== null}
           onOpenChange={setCompactPreviewOpen}

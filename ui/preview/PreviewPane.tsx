@@ -1,4 +1,8 @@
 import { createPortal } from "react-dom";
+import {
+  revealScrollbarOnScroll,
+  useScrollbarIdleTimeout,
+} from "../auto-hide-scrollbar";
 import { copyText } from "../copy-text";
 import { ToolbarButton } from "../toolbar-button";
 import { useEffect, useRef, useState } from "react";
@@ -68,6 +72,7 @@ function selectionUnavailable(error: unknown): boolean {
 function PreviewBody(props: {
   path: string;
   payload: TransferPayload;
+  rootPath: string;
   route: PreviewRoute;
   sourceMode: boolean;
   text: string | null;
@@ -86,7 +91,13 @@ function PreviewBody(props: {
     );
   }
   if (props.route.kind === "markdown" && props.text !== null)
-    return <MarkdownPreview content={props.text} />;
+    return (
+      <MarkdownPreview
+        content={props.text}
+        path={props.path}
+        rootPath={props.rootPath}
+      />
+    );
   if (props.route.kind === "html" && props.text !== null)
     return <HtmlPreview content={props.text} path={props.path} />;
   if (props.route.kind === "image")
@@ -122,6 +133,7 @@ export function PreviewPane(props: {
 }) {
   const navigation = useBbNavigate();
   const currentKeyRef = useRef<string | null>(null);
+  const scrollbarIdleTimeoutRef = useScrollbarIdleTimeout();
   const [retry, setRetry] = useState(0);
   const [state, setState] = useState<PreviewState>({ status: "idle" });
   const [actionError, setActionError] = useState<string | null>(null);
@@ -296,7 +308,12 @@ export function PreviewPane(props: {
           {actionError}
         </p>
       )}
-      <div className="filetree-preview-content">
+      <div
+        className="filetree-preview-content"
+        onScroll={(event) =>
+          revealScrollbarOnScroll(event, scrollbarIdleTimeoutRef)
+        }
+      >
         {state.status === "loading" ? (
           <p role="status">Loading preview…</p>
         ) : null}
@@ -316,6 +333,7 @@ export function PreviewPane(props: {
             route={state.route}
             payload={state.payload}
             path={selection.path}
+            rootPath={selection.root.rootPath}
             text={state.text}
             sourceMode={sourceMode}
             overflow={overflow}
