@@ -48,6 +48,7 @@ function ThreadFileOpener(props: PluginFileOpenerProps & { threadId: string }) {
       data={data}
       threadId={threadId}
       initialSelection={target}
+      layout="opener"
     />
   );
 }

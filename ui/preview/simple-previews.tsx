@@ -1,12 +1,30 @@
 import { Markdown } from "@get-bb/plugin-sdk/app";
 import { useMemo } from "react";
 import { isolatedHtmlDocument } from "./html-safety.js";
+import { rewriteMarkdownImageSrcs } from "./markdown-images.js";
 import { useObjectUrl } from "./object-url.js";
 
-export function MarkdownPreview({ content }: { content: string }) {
+export function MarkdownPreview({
+  content,
+  path,
+  rootPath,
+}: {
+  content: string;
+  path: string;
+  rootPath: string;
+}) {
+  const rewritten = useMemo(
+    () =>
+      rewriteMarkdownImageSrcs({
+        content,
+        markdownPath: path,
+        rootPath,
+      }),
+    [content, path, rootPath],
+  );
   return (
     <div className="filetree-preview-markdown">
-      <Markdown content={content} />
+      <Markdown content={rewritten} />
     </div>
   );
 }

@@ -84,6 +84,55 @@
   display: flex;
   overflow: auto;
   flex-direction: column;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.filetree-preview-content::-webkit-scrollbar,
+.filetree-preview-table-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.filetree-preview-content::-webkit-scrollbar-track,
+.filetree-preview-content::-webkit-scrollbar-corner,
+.filetree-preview-table-scroll::-webkit-scrollbar-track,
+.filetree-preview-table-scroll::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.filetree-preview-content::-webkit-scrollbar-thumb,
+.filetree-preview-table-scroll::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background-color: transparent;
+}
+
+.filetree-preview-content[data-scrollbar-scrolling="true"],
+.filetree-preview-table-scroll[data-scrollbar-scrolling="true"] {
+  scrollbar-color: color-mix(
+      in oklab,
+      var(--foreground, CanvasText) 20%,
+      transparent
+    )
+    transparent;
+}
+
+.filetree-preview-content[data-scrollbar-scrolling="true"]::-webkit-scrollbar-thumb,
+.filetree-preview-table-scroll[data-scrollbar-scrolling="true"]::-webkit-scrollbar-thumb {
+  background-color: color-mix(
+    in oklab,
+    var(--foreground, CanvasText) 20%,
+    transparent
+  );
+}
+
+.filetree-preview-content[data-scrollbar-scrolling="true"]::-webkit-scrollbar-thumb:hover,
+.filetree-preview-table-scroll[data-scrollbar-scrolling="true"]::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(
+    in oklab,
+    var(--foreground, CanvasText) 40%,
+    transparent
+  );
 }
 
 .filetree-preview-empty {
@@ -159,6 +208,11 @@
   overflow-wrap: anywhere;
 }
 
+.filetree-preview-markdown img {
+  max-width: 100%;
+  height: auto;
+}
+
 .filetree-preview-warnings {
   margin: 0.75rem;
   padding: 0.5rem 0.75rem;
@@ -197,6 +251,8 @@
   overflow: auto;
   flex: 1;
   border: 1px solid var(--border);
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
 
 .filetree-preview-table-scroll table {
