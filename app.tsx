@@ -39,7 +39,7 @@ export default definePluginApp((app) => {
   app.slots.threadPanelAction({
     id: "files",
     title: "Files",
-    icon: "Folder",
+    icon: "FileDiff",
     layout: "flush",
     component: FilesPanel,
     // Always present in the thread's right panel on BB builds that support it.
