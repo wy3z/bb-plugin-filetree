@@ -3,6 +3,8 @@ import {
   useBbNavigate,
   type PluginThreadPanelProps,
 } from "@get-bb/plugin-sdk/app";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { FileStackIcon } from "@hugeicons/core-free-icons";
 import { NativeFilesPanel } from "./ui/NativeFilesPanel.js";
 import { useFilesData } from "./ui/use-files-data.js";
 import { liveFileTarget, type LiveFileTarget } from "./ui/live-file-target.js";
@@ -35,11 +37,28 @@ function FilesPanel({ threadId }: PluginThreadPanelProps) {
   );
 }
 
+const TAB_ICON = "filetree/FileStack";
+
+function FileStackGlyph({ className }: { className?: string }) {
+  return <HugeiconsIcon icon={FileStackIcon} className={className} />;
+}
+
+/** App icons arrived after this plugin's pinned SDK; older hosts fall back to Folder. */
+type IconRegistry = {
+  register(registration: {
+    name: string;
+    component: (props: { className?: string }) => React.ReactNode;
+  }): void;
+};
+
 export default definePluginApp((app) => {
+  const icons = (app as unknown as { experimental_icons?: IconRegistry })
+    .experimental_icons;
+  icons?.register({ name: TAB_ICON, component: FileStackGlyph });
   app.slots.threadPanelAction({
     id: "files",
     title: "Files",
-    icon: "FileDiff",
+    icon: icons ? TAB_ICON : "Folder",
     layout: "flush",
     component: FilesPanel,
     // Always present in the thread's right panel on BB builds that support it.
