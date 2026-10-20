@@ -95,6 +95,8 @@ interface RootExplorerProps {
   initialPath?: string;
   data: NativeFilesData;
   onSelectionChange(selection: NativeFilesSelection | null): void;
+  /** A file the user picked (click, keyboard or search), not a restored selection. */
+  onOpenFile?(selection: NativeFilesSelection): void;
   root: NativeFilesRoot;
   threadId: string;
 }
@@ -423,11 +425,13 @@ function RootExplorer(props: RootExplorerProps) {
     view.setExpanded(expanded);
     view.setSelectedPath(path);
     props.onSelectionChange({ root: props.root, path });
+    props.onOpenFile?.({ root: props.root, path });
     window.setTimeout(() => focusRow(path), 0);
   };
   const selectFile = (path: string) => {
     view.setSelectedPath(path);
     props.onSelectionChange({ root: props.root, path });
+    props.onOpenFile?.({ root: props.root, path });
   };
   const handleKey = (
     event: ReactKeyboardEvent<HTMLElement>,

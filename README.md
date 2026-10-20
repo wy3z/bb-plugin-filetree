@@ -1,14 +1,15 @@
 # FileTree
 
-A Codex-style file pane for BB.
+A Codex-style file tree for BB.
 
 ![FileTree pane with a source preview and searchable file tree](docs/screenshots/files.png)
 
 - Browse workspaces and project sources with search, Git status and live updates.
-- Preview code, Markdown, images, PDF, HTML, Word, Excel and PowerPoint.
-- Wrap text, copy paths or contents, download files and open your editor.
+- Pick a file to open it in BB's own viewer, in the thread's main pane.
+- Stays pinned in every thread's right panel on BB builds with a main pane
+  (`wy3z/bb` `feat/main-pane-tabs`). Elsewhere, choose **+ → Files**.
 
-Opens supported files automatically. Or choose **+ → Files** in the right panel. File access is read-only.
+File access is read-only.
 
 ```sh
 bb plugin install https://github.com/wy3z/bb-plugin-filetree

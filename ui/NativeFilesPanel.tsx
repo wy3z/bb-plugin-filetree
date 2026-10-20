@@ -59,9 +59,11 @@ export function NativeFilesPanel(props: {
   initialSelection?: NativeFilesSelection;
   /**
    * `opener` is mounted inside BB's file tab. Skip the compact preview drawer
-   * so mobile does not stack a second sheet on top of that tab.
+   * so mobile does not stack a second sheet on top of that tab. `tree` shows
+   * only the explorer and hands picked files to `onOpenFile`.
    */
-  layout?: "panel" | "opener";
+  layout?: "panel" | "opener" | "tree";
+  onOpenFile?: (selection: NativeFilesSelection) => void;
 }) {
   const layout = props.layout ?? "panel";
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -129,6 +131,7 @@ export function NativeFilesPanel(props: {
     <ExplorerPane
       data={props.data}
       onSelectionChange={select}
+      onOpenFile={props.onOpenFile}
       threadId={props.threadId}
       rootSelectorTarget={rootSelectorTarget}
       initialSelection={props.initialSelection}
@@ -152,6 +155,21 @@ export function NativeFilesPanel(props: {
       toolbarTarget={compact ? null : toolbarTarget}
     />
   );
+  if (layout === "tree") {
+    return (
+      <div ref={rootRef} className="filetree-app is-tree-only">
+        <div className="filetree-app-toolbar">
+          <div
+            className="filetree-root-selector-target"
+            ref={setRootSelectorTarget}
+          />
+        </div>
+        <div className="filetree-app-body">
+          <div className="filetree-app-explorer is-compact">{explorer}</div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div
       ref={rootRef}
