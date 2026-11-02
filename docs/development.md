@@ -12,7 +12,7 @@ bb plugin install .
 
 The repository contains **FileTree** (`bb-plugin-filetree`, plugin ID `filetree`).
 
-The plugin pins public SDK 0.4.47 and requires BB 0.42 or newer. It does not change BB's core APIs, daemon protocol, or application dependencies. A C compiler, Python and Node headers are required to build the descriptor-based native addon. The generated addon is embedded in the host artifact; the enrolled host does not need a compiler.
+The plugin pins public SDK 0.4.47 and requires BB 0.48 or newer. It does not change BB's core APIs, daemon protocol, or application dependencies. A C compiler, Python and Node headers are required to build the descriptor-based native addon. The generated addon is embedded in the host artifact; the enrolled host does not need a compiler.
 
 This release is verified on Linux x64. macOS requires building and verifying on the target platform. Windows is unsupported. The Linux binary must match the target libc. Unsupported or missing native binaries fail closed.
 

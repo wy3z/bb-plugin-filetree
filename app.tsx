@@ -1,34 +1,35 @@
-import {
-  definePluginApp,
-  useBbNavigate,
-  type PluginThreadPanelProps,
-} from "@get-bb/plugin-sdk/app";
+import { definePluginApp, useBbNavigate } from "@get-bb/plugin-sdk/app";
 import { NativeFilesPanel } from "./ui/NativeFilesPanel.js";
 import { useFilesData } from "./ui/use-files-data.js";
-import { liveFileTarget, type LiveFileTarget } from "./ui/live-file-target.js";
+import { liveFileTarget } from "./ui/live-file-target.js";
 
-/** Open picked files in BB's own viewer, in the thread's main pane. */
-type OpenFilePreview = (options: {
-  target: LiveFileTarget;
-  location: null;
-  experimental_placement: "main";
-}) => boolean;
+/** Props BB passes a thread-context tab. */
+type ThreadTabProps = { threadId: string; environment: { id: string } | null };
 
-function FilesPanel({ threadId }: PluginThreadPanelProps) {
+/** `experimental_tab` arrived after this plugin's pinned SDK typings. */
+type TabSlot = (registration: {
+  context: { kind: "thread" };
+  availability: "fixed";
+  id: string;
+  title: string;
+  icon: string;
+  layout: "flush";
+  component: (props: ThreadTabProps) => React.ReactNode;
+}) => void;
+
+function FilesPanel({ threadId }: ThreadTabProps) {
   const data = useFilesData(threadId);
   const navigate = useBbNavigate();
-  const openFilePreview =
-    navigate.experimental_openFilePreview as unknown as OpenFilePreview;
   return (
     <NativeFilesPanel
       data={data}
       threadId={threadId}
       layout="tree"
       onOpenFile={(selection) => {
-        openFilePreview({
+        // BB's own viewer, opened as a tab in the right panel.
+        navigate.experimental_openFilePreview({
           target: liveFileTarget(selection),
           location: null,
-          experimental_placement: "main",
         });
       }}
     />
@@ -69,13 +70,16 @@ export default definePluginApp((app) => {
   const icons = (app as unknown as { experimental_icons?: IconRegistry })
     .experimental_icons;
   icons?.register({ name: TAB_ICON, component: FilesGlyph });
-  app.slots.threadPanelAction({
+  // A fixed tab is always present in every thread's right panel.
+  const tab = (app.slots as unknown as { experimental_tab: TabSlot })
+    .experimental_tab;
+  tab({
+    context: { kind: "thread" },
+    availability: "fixed",
     id: "files",
     title: "Files",
     icon: icons ? TAB_ICON : "Folder",
     layout: "flush",
     component: FilesPanel,
-    // Always present in the thread's right panel on BB builds that support it.
-    ...({ experimental_pinned: true } as object),
   });
 });

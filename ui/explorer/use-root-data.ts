@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { rootCache } from "./caches";
 import type { NativeFileRootsResponse } from "../../contracts/api";
 import type { NativeFilesData } from "../native-files-data";
 import type { NativeFilesRoot } from "../native-files-ui-types";
@@ -54,7 +55,19 @@ export function useRootData(options: {
   const selectedRootRef = useRef(options.initialRootId ?? null);
   const requestRef = useRef(0);
   const controllerRef = useRef<AbortController | null>(null);
-  const [state, setState] = useState<RootDataState>({ status: "loading" });
+  // Survives the tab unmounting so returning doesn't flash a loading state.
+  const [state, setStateRaw] = useState<RootDataState>(
+    () => rootCache.get(options.threadId) ?? { status: "loading" },
+  );
+  const setState = useCallback(
+    (next: RootDataState | ((current: RootDataState) => RootDataState)) =>
+      setStateRaw((current) => {
+        const value = typeof next === "function" ? next(current) : next;
+        if (value.status === "ready") rootCache.set(options.threadId, value);
+        return value;
+      }),
+    [options.threadId],
+  );
   const reload = useCallback(async () => {
     const request = ++requestRef.current;
     controllerRef.current?.abort();

@@ -9,6 +9,7 @@ export default {
   },
   test: {
     silent: "passed-only",
+    setupFiles: ["./vitest.setup.ts"],
     include: ["**/*.test.ts", "**/*.test.tsx"],
     exclude: ["node_modules/**", "dist/**", "generated/**"],
   },

@@ -49,6 +49,7 @@ import {
 import { adjacentPath, treeKeyboardCommand } from "./tree-keyboard";
 import { useExplorerState } from "./use-explorer-state";
 import { useRootData } from "./use-root-data";
+import { directoryCache } from "./caches";
 import {
   buildVirtualTreeLayout,
   scrollTopForVirtualTreeIndex,
@@ -100,7 +101,13 @@ interface RootExplorerProps {
   root: NativeFilesRoot;
   threadId: string;
 }
+function cachedDirectories(key: string): ReadonlyMap<string, DirectorySnapshot> {
+  const cached = directoryCache.get(key);
+  if (cached === undefined) return new Map();
+  return new Map([...cached].filter(([, snapshot]) => snapshot.status === "ready"));
+}
 function RootExplorer(props: RootExplorerProps) {
+  const cacheKey = `${props.threadId}\0${props.root.rootId}`;
   const view = useExplorerState({
     storage: window.localStorage,
     threadId: props.threadId,
@@ -116,8 +123,11 @@ function RootExplorer(props: RootExplorerProps) {
   const requestsRef = useRef(new Map<string, AbortController>());
   const [directories, setDirectories] = useState<
     ReadonlyMap<string, DirectorySnapshot>
-  >(new Map());
+  >(() => cachedDirectories(cacheKey));
   const directoriesRef = useRef(directories);
+  useEffect(() => {
+    directoryCache.set(cacheKey, directories);
+  }, [cacheKey, directories]);
   const [gitChanges, setGitChanges] = useState<readonly NativeFilesGitChange[]>(
     [],
   );
@@ -197,13 +207,14 @@ function RootExplorer(props: RootExplorerProps) {
   useEffect(() => {
     let active = true;
     void (async () => {
-      await loadDirectory("");
+      // Forced: cached listings stay on screen while they refresh.
+      await loadDirectory("", true);
       const expanded = [...view.state.expanded].sort(
         (left, right) => left.split("/").length - right.split("/").length,
       );
       for (const path of expanded) {
         if (!active) return;
-        await loadDirectory(path).catch(() => undefined);
+        await loadDirectory(path, true).catch(() => undefined);
       }
       const selectedPath = view.state.selectedPath;
       if (!active || selectedPath === null) return;
@@ -359,13 +370,19 @@ function RootExplorer(props: RootExplorerProps) {
       ),
     [layout, rows, scrollTop],
   );
+  // Restore the saved scroll once the rows are tall enough to reach it.
+  const pendingScrollRef = useRef<number | null>(view.state.scrollTop || null);
   useEffect(() => {
     const element = scrollRef.current;
     if (element === null) return;
-    element.scrollTop = view.state.scrollTop;
-    setScrollTop(element.scrollTop);
     setViewportHeight(element.clientHeight || 560);
-  }, []);
+    const target = pendingScrollRef.current;
+    if (target === null) return;
+    if (element.scrollHeight - element.clientHeight < target) return;
+    pendingScrollRef.current = null;
+    element.scrollTop = target;
+    setScrollTop(element.scrollTop);
+  }, [layout]);
   useEffect(() => {
     if (
       rows.length > 0 &&
@@ -731,6 +748,8 @@ function RootExplorer(props: RootExplorerProps) {
               aria-busy={busy}
               onScroll={(event) => {
                 const next = event.currentTarget.scrollTop;
+                if (pendingScrollRef.current !== null && next !== 0)
+                  pendingScrollRef.current = null;
                 setScrollTop(next);
                 setViewportHeight(event.currentTarget.clientHeight || 560);
                 view.setScrollTop(next);

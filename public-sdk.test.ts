@@ -25,7 +25,7 @@ describe("standalone plugin imports", () => {
         /^@hugeicons\/(core-free-icons|react)$/,
         /^tailwind-merge$/,
         /^esbuild$/,
-        /^vitest\/(config|node)$/,
+        /^vitest(?:\/(config|node))?$/,
       ],
     });
     expect(result.privateDependencies).toEqual([]);

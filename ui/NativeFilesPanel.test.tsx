@@ -160,6 +160,24 @@ async function openSrcAppTs() {
   );
 }
 describe("NativeFilesPanel", () => {
+  it("shows the tree as it was when the tab is remounted", async () => {
+    const first = renderPanel();
+    fireEvent.click(
+      await screen.findByRole("treeitem", { name: /src, directory/u }),
+    );
+    await screen.findByRole("treeitem", { name: /app\.ts, file/u });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    first.unmount();
+    // Returning to the tab: the host never answers, yet the tree is there.
+    const stalled = data();
+    vi.mocked(stalled.listRoots).mockReturnValue(new Promise(() => {}));
+    vi.mocked(stalled.listDirectory).mockReturnValue(new Promise(() => {}));
+    renderPanel(stalled);
+    expect(
+      screen.getByRole("treeitem", { name: /app\.ts, file/u }),
+    ).toBeTruthy();
+    expect(screen.queryByText("Loading workspace roots…")).toBeNull();
+  });
   it("copies the full path and reports clipboard success or failure", async () => {
     renderPanel();
     await openSrcAppTs();
