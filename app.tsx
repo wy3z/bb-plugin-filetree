@@ -2,6 +2,8 @@ import { definePluginApp, useBbNavigate } from "@get-bb/plugin-sdk/app";
 import { NativeFilesPanel } from "./ui/NativeFilesPanel.js";
 import { useFilesData } from "./ui/use-files-data.js";
 import { liveFileTarget } from "./ui/live-file-target.js";
+import { focusSiblingPane } from "./ui/split-pane-target.js";
+import { useRef } from "react";
 
 /** Props BB passes a thread-context tab. */
 type ThreadTabProps = { threadId: string; environment: { id: string } | null };
@@ -20,19 +22,28 @@ type TabSlot = (registration: {
 function FilesPanel({ threadId }: ThreadTabProps) {
   const data = useFilesData(threadId);
   const navigate = useBbNavigate();
+  const rootRef = useRef<HTMLDivElement>(null);
   return (
-    <NativeFilesPanel
-      data={data}
-      threadId={threadId}
-      layout="tree"
-      onOpenFile={(selection) => {
-        // BB's own viewer, opened as a tab in the right panel.
-        navigate.experimental_openFilePreview({
-          target: liveFileTarget(selection),
-          location: null,
-        });
-      }}
-    />
+    // display: contents keeps the flush layout; the div is only a DOM anchor.
+    <div ref={rootRef} style={{ display: "contents" }}>
+      <NativeFilesPanel
+        data={data}
+        threadId={threadId}
+        layout="tree"
+        onOpenFile={(selection) => {
+          // In a split, open beside the tree rather than over it.
+          const restoreFocus = focusSiblingPane(rootRef.current);
+          // BB's own viewer, opened as a tab in the right panel.
+          navigate.experimental_openFilePreview({
+            target: liveFileTarget(selection),
+            location: null,
+          });
+          // Hand focus back to the tree once BB has placed the tab.
+          if (restoreFocus)
+            requestAnimationFrame(() => requestAnimationFrame(restoreFocus));
+        }}
+      />
+    </div>
   );
 }
 

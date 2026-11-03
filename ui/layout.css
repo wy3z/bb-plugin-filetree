@@ -130,3 +130,10 @@
   flex: 0 0 auto;
   align-items: center;
 }
+
+/* Tree-only tab: the toolbar holds just the root selector, which is empty
+   with a single root. Drop the strip rather than leave a blank band. */
+.filetree-app.is-tree-only
+  .filetree-app-toolbar:not(:has(.filetree-root-selector-target > *)) {
+  display: none;
+}
