@@ -2,7 +2,7 @@
 
 A file tree for BB's right panel.
 
-<img src="docs/screenshots/files.png" alt="The Files tab: a searchable tree of workspace files with Symbols file icons" width="300">
+![The Files tab: a searchable tree of workspace files with Symbols file icons](docs/screenshots/files.png)
 
 - Browse workspaces and project sources with search, Git status and live updates.
 - Pick a file to open it in BB's own viewer, as a tab in the right panel.
