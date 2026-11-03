@@ -19,4 +19,4 @@ Requires BB 0.48.1+. Includes a Linux x64 build; macOS requires a native build. 
 
 [Development and CLI](docs/development.md)
 
-File icons are [Symbols](https://github.com/miguelsolorio/vscode-symbols) by Miguel Solorio (MIT), as bundled by Zeron, with slate greys made neutral; see `vendor/symbols`.
+File icons are [Symbols](https://github.com/miguelsolorio/vscode-symbols) by Miguel Solorio (MIT), with slate greys made neutral; see `vendor/symbols`.
