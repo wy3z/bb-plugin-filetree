@@ -12,7 +12,7 @@ bb plugin install .
 
 The repository contains **FileTree** (`bb-plugin-filetree`, plugin ID `filetree`).
 
-The plugin pins public SDK 0.4.47 and requires BB 0.48 or newer. It does not change BB's core APIs, daemon protocol, or application dependencies. A C compiler, Python and Node headers are required to build the descriptor-based native addon. The generated addon is embedded in the host artifact; the enrolled host does not need a compiler.
+The plugin pins public SDK 0.6.104 and requires BB 0.48.1 or newer. It does not change BB's core APIs, daemon protocol, or application dependencies. A C compiler, Python and Node headers are required to build the descriptor-based native addon. The generated addon is embedded in the host artifact; the enrolled host does not need a compiler.
 
 This release is verified on Linux x64. macOS requires building and verifying on the target platform. Windows is unsupported. The Linux binary must match the target libc. Unsupported or missing native binaries fail closed.
 
@@ -20,7 +20,7 @@ To prepare an installable package after the build:
 
 ```sh
 pnpm pack
-bb plugin install ./bb-plugin-filetree-0.2.1.tgz
+bb plugin install ./bb-plugin-filetree-0.3.0.tgz
 ```
 
 This standalone repository includes the generated worker and native-asset modules needed by BB's Git installer, which skips generation scripts. `pnpm build` regenerates them from source. Commit updated generated assets with source changes before publishing. For multi-platform packages, supply the corresponding `prebuilds/linux-x64.node`, `linux-arm64.node`, `darwin-x64.node`, or `darwin-arm64.node` files before generation.
@@ -42,7 +42,7 @@ bb files download slides.pptx --thread THREAD_ID --root ROOT_ID
 
 ## SDK and RPC
 
-`contracts/rpc.ts` exports the typed plugin contract used by the frontend's `useRpc`. Other SDK consumers can call `sdk.plugins.callRpc` with plugin ID `files` and methods `roots`, `directory`, `search`, `gitStatus`, `transfer`, `cancel`, or `watch`, supplying the corresponding contract schema. `transfer`, `search` and `gitStatus` require an `operationId`; pass the same thread/root/operation identity to `cancel` to abort an in-flight request. `watch` returns the current `rootIds` and whether all native watches were established. The CLI exercises the same service. No `sdk.files.explorer` extension is required.
+`contracts/rpc.ts` exports the typed plugin contract used by the frontend's `useRpc`. Other SDK consumers can call `sdk.plugins.callRpc` with plugin ID `filetree` and methods `roots`, `directory`, `search`, `gitStatus`, `transfer`, `cancel`, or `watch`, supplying the corresponding contract schema. `transfer`, `search` and `gitStatus` require an `operationId`; pass the same thread/root/operation identity to `cancel` to abort an in-flight request. `watch` returns the current `rootIds` and whether all native watches were established. The CLI exercises the same service. No `sdk.files.explorer` extension is required.
 
 The server resolves the thread, environment, and project sources through `bb.sdk` before host I/O and checks the root identity again before publishing results. Clients cannot supply a host or absolute root path. Directory listing, search and Git retain descriptor-relative host operations. File reads use the stable `sdk.files.read` API and its path/symlink handling; they no longer use the plugin’s descriptor-relative read implementation. The server checks the returned size and SHA-256, then retains immutable download bytes in a cache bounded to 100 MiB including reservations for in-flight reads. BB limits images to 10 MiB and other files to 25 MiB. Missing modification times are returned as `null`.
 

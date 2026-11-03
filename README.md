@@ -1,11 +1,12 @@
 # FileTree
 
-A Codex-style file tree for BB.
+A file tree for BB's right panel.
 
-![FileTree pane with a source preview and searchable file tree](docs/screenshots/files.png)
+<img src="docs/screenshots/files.png" alt="The Files tab: a searchable tree of workspace files with Symbols file icons" width="300">
 
 - Browse workspaces and project sources with search, Git status and live updates.
 - Pick a file to open it in BB's own viewer, as a tab in the right panel.
+- With the right panel split, files open in the other pane, so the tree stays in view.
 - A fixed **Files** tab in every thread's right panel.
 
 File access is read-only.
@@ -14,7 +15,7 @@ File access is read-only.
 bb plugin install https://github.com/wy3z/bb-plugin-filetree
 ```
 
-Requires BB 0.48+. Includes a Linux x64 build; macOS requires a native build. Windows is unsupported.
+Requires BB 0.48.1+. Includes a Linux x64 build; macOS requires a native build. Windows is unsupported.
 
 [Development and CLI](docs/development.md)
 
