@@ -37,7 +37,9 @@ describe("standalone plugin imports", () => {
       },
       {
         file: "scripts/smoke-artifact.mjs",
-        specifier: "pathToFileURL(artifactPath",
+        // SDK 0.6.104 reports the whole dynamic expression, `...).href`
+        // included; the plugin passes `import(pathToFileURL(artifactPath).href)`.
+        specifier: "pathToFileURL(artifactPath).href",
         reason: "dynamic-specifier",
       },
     ]);
