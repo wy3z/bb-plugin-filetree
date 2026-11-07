@@ -15,7 +15,7 @@ File access is read-only.
 bb plugin install https://github.com/wy3z/bb-plugin-filetree
 ```
 
-Requires BB 0.48.1+. Includes a Linux x64 build; macOS requires a native build. Windows is unsupported.
+Requires BB 0.49+. Includes a Linux x64 build; macOS requires a native build. Windows is unsupported.
 
 [Development and CLI](docs/development.md)
 
